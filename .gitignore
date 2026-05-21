@@ -1,0 +1,48 @@
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+
+# ── Environment & secrets ─────────────────────────────────────────────────────
+.env
+*.pem
+*.key
+
+# ── Jupyter ───────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+research/notebooks/*.ipynb
+
+# ── Data & model artifacts ────────────────────────────────────────────────────
+data/vector_store/
+data/llm_answer_bank.jsonl
+*.pkl
+*.pt
+*.bin
+*.h5
+
+# ── Docker / local volumes ────────────────────────────────────────────────────
+.docker/
+delta/
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+planning/
