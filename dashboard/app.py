@@ -22,15 +22,29 @@ re-fetches GET /session/{id}/score every 10 s via st.rerun().
 from __future__ import annotations
 
 import html
+import sys
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import plotly.graph_objects as go
 import streamlit as st
 
-from dashboard.api_client import APIError, end_session, get_report, get_score, get_token, health_check
-from dashboard.pdf_export import generate_report_pdf
+# Ensure the project root is on sys.path so both `streamlit run dashboard/app.py`
+# (which adds dashboard/ to sys.path) and `python -m dashboard.app` work.
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from dashboard.api_client import APIError, end_session, get_report, get_score, get_token, health_check  # noqa: E402
+
+try:
+    from dashboard.pdf_export import generate_report_pdf
+    _PDF_AVAILABLE = True
+except ImportError:
+    _PDF_AVAILABLE = False
+    generate_report_pdf = None  # type: ignore[assignment]
 
 # ── BRAND.md color tokens ──────────────────────────────────────────────────────
 _PRIMARY    = "#003366"
@@ -1220,18 +1234,21 @@ def main() -> None:
             unsafe_allow_html=True,
         )
         if report_data:
-            try:
-                pdf_bytes = generate_report_pdf(report_data)
-                sid_short = (session_id or "demo")[:8]
-                st.download_button(
-                    label="Download PDF Report",
-                    data=pdf_bytes,
-                    file_name=f"trustsignal_report_{sid_short}.pdf",
-                    mime="application/pdf",
-                    key="pdf_dl",
-                )
-            except Exception as e:
-                st.warning(f"PDF generation unavailable: {e}")
+            if not _PDF_AVAILABLE:
+                st.info("PDF export requires fpdf2: `pip install fpdf2`")
+            else:
+                try:
+                    pdf_bytes = generate_report_pdf(report_data)
+                    sid_short = (session_id or "demo")[:8]
+                    st.download_button(
+                        label="Download PDF Report",
+                        data=pdf_bytes,
+                        file_name=f"trustsignal_report_{sid_short}.pdf",
+                        mime="application/pdf",
+                        key="pdf_dl",
+                    )
+                except Exception as e:
+                    st.warning(f"PDF generation failed: {e}")
 
     else:
         # Empty state

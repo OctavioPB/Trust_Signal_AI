@@ -1,5 +1,3 @@
-version: "3.8"
-
 # ────────────────────────────────────────────────────────────────────────────
 # TrustSignal AI — Local Development Stack
 #
@@ -28,7 +26,6 @@ x-airflow-common:
   networks:
     - trustsignal
   environment:
-    &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
     AIRFLOW__CORE__FERNET_KEY: "ZmDfcTF7_60GrrY167zsiPd67pEvs0aGOv2oasOM1Pg="
@@ -57,10 +54,12 @@ services:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
     healthcheck:
-      test: ["CMD", "bash", "-c", "echo ruok | nc localhost 2181 | grep imok"]
+      # srvr is whitelisted by default in CP 7.x; ruok is not.
+      test: ["CMD-SHELL", "echo srvr | nc localhost 2181 | grep -q Mode"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 15s
 
   broker:
     image: confluentinc/cp-kafka:7.6.1
@@ -72,19 +71,19 @@ services:
       zookeeper:
         condition: service_healthy
     ports:
-      - "9092:9092"
+      - "9095:9092"   # 9092 taken by harmoni-kafka; use 9095 on host
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9095
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
     healthcheck:
-      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9095"]
       interval: 15s
       timeout: 10s
       retries: 10
@@ -120,13 +119,13 @@ services:
 
   # ── Object Storage ──────────────────────────────────────────────────────
   minio:
-    image: minio/minio:RELEASE.2024-01-16T16-07-38Z
+    image: minio/minio:latest
     container_name: ts-minio
     networks:
       - trustsignal
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "9200:9000"   # 9000 taken by harmoni-clickhouse, 9100/9101 taken by harmoni-kafka
+      - "9201:9001"   # MinIO console on 9201
     environment:
       MINIO_ROOT_USER: "${MINIO_ACCESS_KEY:-minioadmin}"
       MINIO_ROOT_PASSWORD: "${MINIO_SECRET_KEY:-minioadmin}"
@@ -141,7 +140,7 @@ services:
 
   # Creates the three required buckets on first boot
   minio-setup:
-    image: minio/mc:RELEASE.2024-01-16T16-07-38Z
+    image: minio/mc:latest
     container_name: ts-minio-setup
     networks:
       - trustsignal
@@ -202,7 +201,7 @@ services:
       airflow-init:
         condition: service_completed_successfully
     ports:
-      - "8080:8080"
+      - "8083:8080"   # 8080 taken by harmoni-kafka-ui, 8082 by harmoni-airflow-webserver
     command: webserver
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
@@ -221,24 +220,21 @@ services:
 
   # ── Spark + Delta Lake ──────────────────────────────────────────────────
   spark-master:
-    image: bitnami/spark:3.5
+    image: apache/spark:3.5.3
     container_name: ts-spark-master
     hostname: spark-master
     networks:
       - trustsignal
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.master.Master"]
     environment:
-      SPARK_MODE: master
-      SPARK_RPC_AUTHENTICATION_ENABLED: "no"
-      SPARK_RPC_ENCRYPTION_ENABLED: "no"
-      SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED: "no"
-      SPARK_SSL_ENABLED: "no"
+      SPARK_NO_DAEMONIZE: "true"
     ports:
       - "7077:7077"
       - "8090:8080"  # Spark UI (8080 used by Airflow)
     volumes:
       - delta-data:/delta
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080 2>/dev/null || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 5

@@ -31,7 +31,6 @@ from pydantic import BaseModel, Field
 
 import config
 from ml.trust_score import TrustScoreEngine, TrustScoreResult
-from storage.object_store import ObjectStore
 
 # ── Sentry error tracking (optional) ──────────────────────────────────────────
 # Activated only when SENTRY_DSN is set; no-op otherwise.
@@ -91,7 +90,8 @@ _SESSIONS: dict[str, _SessionState] = {}
 _ENGINE = TrustScoreEngine()
 
 
-def _make_object_store() -> ObjectStore:
+def _make_object_store():
+    from storage.object_store import ObjectStore  # lazy — minio not required at startup
     return ObjectStore(
         endpoint=config.MINIO_ENDPOINT,
         access_key=config.MINIO_ACCESS_KEY,
