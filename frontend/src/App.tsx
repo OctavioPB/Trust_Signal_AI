@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { SessionPage } from "./pages/SessionPage";
 import { useThemeStore } from "./stores/themeStore";
 
 type Page = "session" | "settings";
@@ -7,12 +8,9 @@ export default function App() {
   const [page, setPage] = useState<Page>("session");
   const theme = useThemeStore((s) => s.theme);
 
-  const containerStyle: React.CSSProperties = {
-    minHeight: "100vh",
-    backgroundColor: "var(--light)",
-    fontFamily: "var(--fb)",
-    color: "var(--dark)",
-  };
+  // Apply theme data attribute; the actual CSS token overrides live in tokens.css
+  // We read `theme` only to subscribe to store updates — the side effect is in themeStore.ts
+  void theme;
 
   const navStyle: React.CSSProperties = {
     background: "rgba(0,51,102,0.97)",
@@ -27,16 +25,6 @@ export default function App() {
     padding: "0 40px",
     borderBottom: "1px solid rgba(255,255,255,0.08)",
   };
-
-  const navCenterStyle: React.CSSProperties = {
-    fontFamily: "var(--fb)",
-    fontSize: 9,
-    letterSpacing: "3px",
-    textTransform: "uppercase",
-    color: "rgba(255,255,255,0.4)",
-  };
-
-  const navRightStyle: React.CSSProperties = { display: "flex", gap: 8, alignItems: "center" };
 
   const navLinkBase: React.CSSProperties = {
     background: "none",
@@ -57,24 +45,20 @@ export default function App() {
     backgroundColor: "rgba(201,168,76,0.12)",
   };
 
-  // theme variable referenced to avoid unused-variable TS error; applied via data-theme attr on <html>
-  void theme;
-
   return (
-    <div style={containerStyle}>
+    <div style={{ minHeight: "100vh", backgroundColor: "var(--light)", fontFamily: "var(--fb)", color: "var(--dark)" }}>
       <nav style={navStyle}>
+        {/* OPB monogram */}
         <div style={{ display: "flex", alignItems: "center" }}>
-          <span style={{ fontFamily: "'Fraunces', Georgia, serif", fontSize: 20, fontWeight: 300, color: "#ffffff" }}>
-            O
-          </span>
-          <em style={{ fontFamily: "'Fraunces', Georgia, serif", fontSize: 20, fontWeight: 300, fontStyle: "italic", color: "var(--gold-light)" }}>
-            PB
-          </em>
+          <span style={{ fontFamily: "'Fraunces', Georgia, serif", fontSize: 20, fontWeight: 300, color: "#ffffff" }}>O</span>
+          <em style={{ fontFamily: "'Fraunces', Georgia, serif", fontSize: 20, fontWeight: 300, fontStyle: "italic", color: "var(--gold-light)" }}>PB</em>
         </div>
 
-        <span style={navCenterStyle}>TrustSignal AI</span>
+        <span style={{ fontFamily: "var(--fb)", fontSize: 9, letterSpacing: "3px", textTransform: "uppercase", color: "rgba(255,255,255,0.4)" }}>
+          TrustSignal AI
+        </span>
 
-        <div style={navRightStyle}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button
             style={page === "session" ? { ...navLinkBase, ...navLinkActive } : navLinkBase}
             onClick={() => setPage("session")}
@@ -90,49 +74,35 @@ export default function App() {
         </div>
       </nav>
 
-      <main>
-        {(() => {
-          switch (page) {
-            case "session":
-              return (
-                <div style={{ padding: "40px 48px" }}>
-                  <p style={{ fontFamily: "var(--fb)", color: "var(--mid)", fontSize: 14 }}>
-                    Session view — coming in Sprint 12.
-                  </p>
-                </div>
-              );
-            case "settings":
-              return (
-                <div style={{ padding: "40px 48px" }}>
-                  <p style={{ fontFamily: "var(--fb)", color: "var(--mid)", fontSize: 14 }}>
-                    Settings — coming in Sprint 12.
-                  </p>
-                </div>
-              );
-          }
-        })()}
-      </main>
+      {(() => {
+        switch (page) {
+          case "session":
+            return <SessionPage />;
+          case "settings":
+            return (
+              <div style={{ padding: "40px 48px" }}>
+                <p style={{ fontFamily: "var(--fb)", color: "var(--mid)", fontSize: 14 }}>
+                  Settings — coming in Sprint 13.
+                </p>
+              </div>
+            );
+        }
+      })()}
 
-      <footer
-        style={{
-          backgroundColor: "var(--primary)",
-          padding: "20px 48px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          fontFamily: "var(--fb)",
-          fontSize: 9,
-          letterSpacing: "3px",
-          textTransform: "uppercase",
-          color: "rgba(255,255,255,0.4)",
-        }}
-      >
+      <footer style={{
+        backgroundColor: "var(--primary)",
+        padding: "20px 48px",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        fontFamily: "var(--fb)",
+        fontSize: 9,
+        letterSpacing: "3px",
+        textTransform: "uppercase",
+        color: "rgba(255,255,255,0.4)",
+      }}>
         <span>OPB · Octavio Pérez Bravo · TrustSignal AI</span>
-        <span>
-          {new Date()
-            .toLocaleDateString("en-US", { year: "numeric", month: "long" })
-            .toUpperCase()}
-        </span>
+        <span>{new Date().toLocaleDateString("en-US", { year: "numeric", month: "long" }).toUpperCase()}</span>
       </footer>
     </div>
   );
