@@ -1,0 +1,62 @@
+/* TrustSignal AI — Design Tokens (source of truth: planning/BRAND.md) */
+
+:root {
+  /* ── Colour palette ─────────────────────────────────────────── */
+  --primary:    #003366;
+  --primary-80: #1A4D80;
+  --primary-60: #336699;
+  --primary-30: #99BBDD;
+  --primary-10: #E0EAF4;
+  --gold:       #C8982A;
+  --gold-light: #E8C46A;
+  --dark:       #1C1C2E;
+  --mid:        #6B7280;
+  --light:      #F4F6F9;
+  --white:      #FFFFFF;
+
+  /* Semantic / signal colours */
+  --green:      #27B97C;
+  --green-bg:   #E0F7EF;
+  --orange:     #F07020;
+  --orange-bg:  #FEF0E6;
+  --red:        #E03448;
+  --red-bg:     #FDEAEA;
+
+  /* ── Typography ─────────────────────────────────────────────── */
+  --fd: 'Fraunces', Georgia, serif;
+  --fb: 'Plus Jakarta Sans', sans-serif;
+
+  /* ── Type scale ─────────────────────────────────────────────── */
+  --text-hero:    48px;
+  --text-h1:      32px;
+  --text-h2:      22px;
+  --text-h3:      16px;
+  --text-body:    15px;
+  --text-caption: 12px;
+  --text-label:   10px;
+  --text-code:    13px;
+
+  /* ── Spacing ────────────────────────────────────────────────── */
+  --gap-sm:   8px;
+  --gap-md:   16px;
+  --gap-lg:   24px;
+  --gap-xl:   40px;
+  --gap-xxl:  96px;
+
+  /* ── Shadows / radii ────────────────────────────────────────── */
+  --radius-sm:   8px;
+  --radius-md:  12px;
+  --radius-lg:  14px;
+  --shadow-card: 0 1px 4px rgba(0, 51, 102, 0.08);
+  --shadow-md:   0 2px 12px rgba(0, 51, 102, 0.12);
+}
+
+/* ── Dark theme overrides ───────────────────────────────────────── */
+[data-theme="dark"] {
+  --light: #12121E;
+  --white: #1C1C2E;
+  --dark:  #F4F6F9;
+  --mid:   #9CA3AF;
+  --primary-10: #1A2A3E;
+  --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.3);
+}

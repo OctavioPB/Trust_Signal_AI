@@ -27,34 +27,39 @@ aggregation engine combines them into a single, explainable score.
 WebRTC / WebSocket audio
           │
           ▼
-  Kafka: interview-audio-stream  (24 h retention)
+  Kafka: interview-audio-stream  (24 h retention, 3 partitions)
           │
-          ▼  (Python consumer — low latency)
+          ▼  (Python consumer — ThreadPoolExecutor STT)
   OpenAI Whisper STT
           │
-          ├──► MinIO raw-audio/  (90-day lifecycle)
+          ├──► MinIO raw-audio/  (90-day lifecycle policy)
           │
           ▼
-  Kafka: interview-text-stream  (7 d retention)
+  Kafka: interview-text-stream  (7 d retention, 3 partitions)
           │
           ▼
   Delta Lake  ←── DeltaWriter (ACID upserts)
           │
           └──► ML Signal Pipeline
-                  ├── latency.py       Response Latency   (weight 0.25)
-                  ├── audio_bg.py      Background Audio   (weight 0.20)
-                  ├── perplexity.py    LM Perplexity      (weight 0.20)
-                  ├── burstiness.py    Burstiness         (weight 0.20)
-                  └── similarity.py   Semantic Similarity (weight 0.15)
+                  ├── latency.py       Response Latency    (weight 0.30)
+                  ├── audio_bg.py      Background Audio    (weight 0.15)
+                  ├── perplexity.py    LM Perplexity       (weight 0.20)
+                  ├── burstiness.py    Burstiness          (weight 0.20)
+                  └── similarity.py   Semantic Similarity  (weight 0.15)
                             │
                             ▼
                     trust_score.py → TrustScore 0–100
                             │
                             ▼
-                    FastAPI  →  Streamlit Dashboard
+                    FastAPI (port 8000)
+                            │
+                    ┌───────┴────────┐
+                    ▼               ▼
+            React Dashboard    Streamlit (legacy)
+            (Vite, port 5173)  (port 8501)
 ```
 
-**Nightly Batch (Airflow DAG — see below):**
+**Nightly Batch (Airflow DAG):**
 Delta Lake → extract suspicious → embed → retrain classifiers → update answer bank → Slack notify
 
 ---
@@ -130,18 +135,19 @@ All tasks inherit `retries=2`, `retry_delay=timedelta(minutes=5)` from `DEFAULT_
 
 | Layer | Technology |
 |-------|-----------|
-| Message broker | Apache Kafka |
+| Message broker | Apache Kafka (3 partitions, consumer-group horizontal scaling) |
 | Object storage | MinIO (local) / AWS S3 (prod) |
 | Table format | Delta Lake (PySpark + delta-spark) |
 | Orchestration | Apache Airflow (`@daily` DAG) |
-| STT | OpenAI Whisper (local) / Cloud Whisper fallback |
+| STT | OpenAI Whisper (local, ThreadPoolExecutor) / Cloud Whisper fallback |
 | Embeddings | Sentence-Transformers `all-MiniLM-L6-v2` |
 | Audio classification | LibROSA (MFCC) + scikit-learn RandomForest |
 | NLP scoring | HuggingFace `distilgpt2` (perplexity) |
-| API | FastAPI + JWT HS256 + Pydantic |
-| Dashboard | Streamlit + Plotly |
+| API | FastAPI + JWT HS256 + Pydantic + CORSMiddleware |
+| React dashboard | React 18 + TypeScript 5.4 + Vite 5 + Zustand 4 |
+| Legacy dashboard | Streamlit + Plotly (retained for reference) |
 | Ad-hoc queries | DuckDB `parquet_scan()` over Delta tables |
-| Observability | structlog (JSON) — no PII in logs |
+| Observability | structlog (JSON) — no PII in logs; optional Sentry integration |
 
 ---
 
@@ -149,18 +155,29 @@ All tasks inherit `retries=2`, `retry_delay=timedelta(minutes=5)` from `DEFAULT_
 
 ```
 trustsignal/
-├── api/main.py                  FastAPI endpoints (auth, session, signals, score, report)
+├── api/main.py                  FastAPI endpoints (auth, session, signals, score, report, PDF)
 ├── airflow/
 │   ├── dags/retraining_dag.py  Nightly retraining DAG (5 tasks)
 │   └── sensors/
 │       └── kafka_lag_sensor.py  Waits for Kafka consumer lag = 0
+├── frontend/                    React 18 + TypeScript 5.4 + Vite 5 dashboard
+│   ├── src/
+│   │   ├── App.tsx              Nav + switch/case page routing (no router library)
+│   │   ├── types.ts             TypeScript interfaces matching FastAPI Pydantic models
+│   │   ├── services/api.ts      Typed fetch wrapper (9 functions, ApiError class)
+│   │   ├── stores/
+│   │   │   ├── demoStore.ts     Zustand: synthetic flagged-session payload
+│   │   │   └── themeStore.ts    Zustand: light/dark toggle + localStorage persist
+│   │   └── styles/tokens.css    CSS custom properties from BRAND.md
+│   ├── index.html               Google Fonts (Fraunces + Plus Jakarta Sans)
+│   └── vite.config.ts           /api proxy → http://localhost:8000
 ├── dashboard/
-│   ├── app.py                   Streamlit recruiter dashboard
+│   ├── app.py                   Streamlit recruiter dashboard (legacy)
 │   ├── api_client.py            HTTP client for FastAPI
 │   └── pdf_export.py            PDF report generation (fpdf2)
 ├── ingestion/
 │   ├── producer.py              WebRTC/WS → Kafka
-│   └── consumer.py              Kafka → STT → interview-text-stream
+│   └── consumer.py              Kafka → STT (ThreadPoolExecutor) → interview-text-stream
 ├── ml/
 │   ├── features/
 │   │   ├── latency.py           Response latency CV scorer
@@ -172,28 +189,30 @@ trustsignal/
 │   └── trust_score.py           Weighted aggregation → TrustScore
 ├── storage/
 │   ├── delta_writer.py          PySpark + delta-spark ACID upserts
-│   ├── object_store.py          MinIO audio + artifact persistence
+│   ├── object_store.py          MinIO audio + artifact persistence + GDPR deletion
 │   └── lifecycle.py             MinIO 90-day lifecycle policy
 ├── transcription/
 │   └── whisper_service.py       Whisper STT wrapper
 ├── data/
 │   └── llm_answer_bank.jsonl    59+ canonical AI interview answer Q&A pairs
+├── docs/
+│   └── DPA_TEMPLATE.md          GDPR Data Processing Agreement template
 ├── research/notebooks/
 │   ├── audio_bg_eda.ipynb       MFCC feature EDA + classifier training
 │   └── nlp_signals_eda.ipynb    Perplexity + burstiness + similarity EDA
 ├── scripts/
 │   ├── smoke_test.sh            Service health checks
+│   ├── pii_audit.py             Scans source + logs for PII variable names
 │   └── query_delta.py           DuckDB CLI for Delta Lake ad-hoc queries
 ├── tests/
 │   ├── unit/                    Isolated tests; no I/O; models mocked
-│   └── integration/             Full-stack tests against real/mock services
+│   └── integration/             Full-stack tests (load, lifecycle, GDPR)
 ├── config.py                    Centralised env-var loading (python-dotenv)
 ├── docker-compose.yml           Kafka, MinIO, Airflow, Spark local stack
-├── planning/
-│   ├── CLAUDE.md                Agent constitution and hard rules
-│   ├── PLAN.md                  Sprint roadmap
-│   └── BRAND.md                 Visual identity — all UI decisions live here
-└── requirements.txt
+└── planning/
+    ├── CLAUDE.md                Agent constitution and hard rules
+    ├── PLAN.md                  Sprint roadmap (Sprints 1–13)
+    └── BRAND.md                 Visual identity — all UI decisions live here
 ```
 
 ---
@@ -204,6 +223,7 @@ trustsignal/
 
 - Docker & Docker Compose
 - Python 3.11+
+- Node.js 18+ and npm
 
 ### 1. Start the infrastructure stack
 
@@ -211,19 +231,27 @@ trustsignal/
 docker-compose up -d
 ```
 
-Services started: Zookeeper, Kafka, MinIO, Airflow (webserver + scheduler + worker), Spark.
+| Service | Local port |
+|---------|-----------|
+| Kafka broker | 9095 |
+| MinIO API | 9200 |
+| MinIO console | 9201 |
+| Airflow webserver | 8083 |
+| Spark master UI | 8090 |
 
 ### 2. Install Python dependencies
 
 ```bash
-pip install -r requirements-dev.txt
+pip install -r requirements.txt
+# Optional: PDF export and Streamlit dashboard
+pip install fpdf2 streamlit plotly
 ```
 
 ### 3. Configure environment
 
 ```bash
 cp .env.example .env
-# Edit .env — set FASTAPI_SECRET_KEY, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, etc.
+# Edit .env — set FASTAPI_SECRET_KEY at minimum; defaults work for local dev
 ```
 
 ### 4. Run the API
@@ -232,22 +260,36 @@ cp .env.example .env
 uvicorn api.main:app --reload --port 8000
 ```
 
-### 5. Run the dashboard
+API docs: `http://localhost:8000/docs`
+
+### 5. Run the React dashboard
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173` — click **Load Demo** in the sidebar to explore a synthetic flagged session (TrustScore 31.5, suspicion 0.685).
+
+The Vite dev server proxies `/api/*` to `http://localhost:8000` — no CORS setup needed in development.
+
+### 6. Run the legacy Streamlit dashboard (optional)
 
 ```bash
 streamlit run dashboard/app.py
 ```
 
-Open `http://localhost:8501` → click **Load Demo Data** to explore a synthetic flagged session.
+Open `http://localhost:8501` → click **Load Demo Data**.
 
-### 6. Run tests
+### 7. Run tests
 
 ```bash
 pytest tests/unit/ -v
 pytest tests/integration/ -v   # requires Docker stack
 ```
 
-### 7. Trigger a manual DAG run (dev only)
+### 8. Trigger a manual DAG run (dev only)
 
 ```bash
 airflow dags trigger trustsignal_nightly_retraining
@@ -257,24 +299,46 @@ airflow dags trigger trustsignal_nightly_retraining
 
 ---
 
+## API Reference
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/health` | Liveness probe |
+| `POST` | `/auth/token` | Issue JWT bearer token |
+| `POST` | `/session/start` | Register new interview session |
+| `POST` | `/session/{id}/signals` | Submit signal scores (ML pipeline) |
+| `GET` | `/session/{id}/score` | Current TrustScore + signal breakdown |
+| `GET` | `/session/{id}/report` | Full JSON report with per-turn analysis |
+| `GET` | `/session/{id}/report/pdf` | Download PDF report |
+| `POST` | `/session/{id}/end` | Close session and lock final score |
+| `DELETE` | `/session/{id}` | GDPR erasure (Article 17) |
+
+All session endpoints require `Authorization: Bearer <token>`.
+Interactive docs: `http://localhost:8000/docs`
+
+---
+
 ## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka broker address |
+| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9095` | Kafka broker address |
 | `KAFKA_TOPIC_AUDIO` | `interview-audio-stream` | Raw audio topic |
 | `KAFKA_TOPIC_TEXT` | `interview-text-stream` | Transcript topic |
-| `MINIO_ENDPOINT` | `http://localhost:9000` | MinIO endpoint |
+| `MINIO_ENDPOINT` | `http://localhost:9200` | MinIO endpoint |
 | `MINIO_ACCESS_KEY` | `minioadmin` | MinIO access key |
 | `MINIO_SECRET_KEY` | `minioadmin` | MinIO secret key |
 | `DELTA_LAKE_PATH` | `/delta` | Delta Lake base path |
-| `WHISPER_MODEL_SIZE` | `base` | Whisper model size |
+| `WHISPER_MODEL_SIZE` | `base` | Whisper model size (`tiny`/`base`/`small`/`medium`/`large`) |
+| `MAX_CONCURRENT_STT` | `2` | Max parallel Whisper calls per consumer process |
 | `OPENAI_API_KEY` | _(empty)_ | Optional cloud Whisper fallback |
 | `VECTOR_STORE_PATH` | `data/vector_store` | Embedding store path |
-| `FASTAPI_SECRET_KEY` | `dev-secret-replace-in-production` | JWT signing key |
+| `FASTAPI_SECRET_KEY` | `dev-secret-replace-in-production` | JWT signing key (`openssl rand -hex 32` for prod) |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated CORS origins |
 | `SUSPICION_THRESHOLD` | `0.65` | Flag threshold (suspicion_index ≥ this) |
 | `FALSE_POSITIVE_TARGET` | `0.02` | Target FP rate (2 %) |
 | `SLACK_WEBHOOK_URL` | _(empty)_ | Slack Incoming Webhook for DAG notify |
+| `SENTRY_DSN` | _(empty)_ | Sentry DSN for FastAPI error reporting |
 | `AIRFLOW_HOME` | `/opt/airflow` | Airflow home directory |
 
 ---
@@ -282,11 +346,12 @@ airflow dags trigger trustsignal_nightly_retraining
 ## Key Design Decisions
 
 1. **Append-only Kafka topics** — Interview data is never modified in the stream; corrections go to Delta Lake only.
-2. **90-day MinIO lifecycle** — Audio is deleted automatically after 90 days (GDPR compliance). Implemented in `storage/lifecycle.py`.
+2. **90-day MinIO lifecycle** — Audio is deleted automatically after 90 days (GDPR Article 17). Implemented in `storage/lifecycle.py`.
 3. **UUID-only logging** — No PII (`candidate_name`, `email`) ever appears in logs or Kafka payloads. All identifiers are UUIDs.
 4. **False positive guard** — Any flagged candidate receives a mandatory human-readable explanation (`flag_reason`). Silent suppression is prohibited (CLAUDE.md §8).
-5. **Test-injectable dependencies** — All ML models, database connections, and HTTP clients accept optional constructor arguments so unit tests avoid slow I/O.
+5. **Lazy infrastructure imports** — `minio` and `fpdf2` are imported at call-site, not module level; the API and dashboard start without those packages installed.
 6. **DAG-gated model updates** — The `CLAUDE.md` hard rule: classifier retraining only runs via `trustsignal_nightly_retraining`; no ad-hoc triggers in production.
+7. **React over Streamlit** — The primary dashboard is a React 18 + TypeScript 5.4 SPA (Sprint 11–13); Streamlit is retained under `dashboard/` as a legacy reference.
 
 ---
 

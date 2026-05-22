@@ -24,7 +24,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 import structlog
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Response, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel, Field
@@ -132,6 +133,14 @@ app = FastAPI(
         "TrustScore (0–100) per interview session."
     ),
     version="0.7.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=config.CORS_ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 _bearer = HTTPBearer()
@@ -251,6 +260,60 @@ def _score_response(session: _SessionState, result: TrustScoreResult) -> ScoreRe
 
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
+
+@app.get("/session/{session_id}/report/pdf")
+def session_report_pdf(
+    session_id: str,
+    recruiter_id: Annotated[str, Depends(_auth)],
+) -> Response:
+    """Return the session report as a downloadable PDF.
+
+    Raises:
+        404: Session not found.
+        503: fpdf2 not installed.
+    """
+    session = _get_session(session_id)
+    result = session.final_result or _current_score(session)
+
+    try:
+        from dashboard.pdf_export import generate_report_pdf  # lazy — fpdf2 optional
+    except ImportError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="PDF generation unavailable: install fpdf2 (`pip install fpdf2`).",
+        )
+
+    report_dict = {
+        "session_id": session.session_id,
+        "recruiter_id": session.recruiter_id,
+        "status": session.status,
+        "start_ts": session.start_ts,
+        "end_ts": session.end_ts,
+        "trust_score": result.trust_score,
+        "suspicion_index": result.suspicion_index,
+        "flagged": result.flagged,
+        "flag_reason": result.flag_reason,
+        "signals": [
+            {
+                "signal_name": s.signal_name,
+                "raw_score": s.raw_score,
+                "weight": s.weight,
+                "weighted_contribution": s.weighted_contribution,
+                "explanation": s.explanation,
+            }
+            for s in result.signals
+        ],
+        "turns": session.turns,
+    }
+
+    pdf_bytes = generate_report_pdf(report_dict)
+    filename = f"trustsignal_report_{session_id[:8]}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
 
 @app.get("/health")
 def health() -> dict:

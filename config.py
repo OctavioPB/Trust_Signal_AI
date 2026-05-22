@@ -40,6 +40,12 @@ FALSE_POSITIVE_TARGET: float = float(os.getenv("FALSE_POSITIVE_TARGET", "0.02"))
 
 # ── FastAPI ───────────────────────────────────────────────────────────────────
 FASTAPI_SECRET_KEY: str = os.getenv("FASTAPI_SECRET_KEY", "dev-secret-replace-in-production")
+# Comma-separated allowed CORS origins; dev default includes the Vite dev server.
+CORS_ALLOWED_ORIGINS: list[str] = [
+    o.strip()
+    for o in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+    if o.strip()
+]
 
 # ── Airflow ───────────────────────────────────────────────────────────────────
 AIRFLOW_HOME: str = os.getenv("AIRFLOW_HOME", "/opt/airflow")
