@@ -105,15 +105,18 @@ services:
         kafka-topics --bootstrap-server broker:29092 \
           --create --if-not-exists \
           --topic interview-audio-stream \
-          --partitions 1 --replication-factor 1 \
+          --partitions 3 --replication-factor 1 \
           --config retention.ms=86400000 &&
         kafka-topics --bootstrap-server broker:29092 \
           --create --if-not-exists \
           --topic interview-text-stream \
-          --partitions 1 --replication-factor 1 \
+          --partitions 3 --replication-factor 1 \
           --config retention.ms=604800000 &&
         echo "==> Kafka topics ready:" &&
         kafka-topics --bootstrap-server broker:29092 --describe
+        # 3 partitions allow 3 parallel consumer instances (one per partition).
+        # Run 3 consumer workers: docker compose run audio-consumer  ×3
+        # or: docker compose up --scale audio-consumer=3 (with Swarm / Compose v2)
 
   # ── Object Storage ──────────────────────────────────────────────────────
   minio:

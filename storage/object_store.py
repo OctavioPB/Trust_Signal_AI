@@ -146,6 +146,31 @@ class ObjectStore:
         self._log.info("artifact_uploaded", name=artifact_name, path=full_path)
         return full_path
 
+    def delete_session_audio(self, session_id: str) -> int:
+        """Delete all raw-audio objects for a session (GDPR erasure).
+
+        Safe to call even if the session has no audio stored — returns 0.
+
+        Args:
+            session_id: UUID of the interview session (no PII).
+
+        Returns:
+            Number of objects deleted.
+
+        Raises:
+            S3Error: On MinIO / S3 communication failure.
+        """
+        object_names = self.list_session_chunks(session_id)
+        for obj_name in object_names:
+            self._client.remove_object(BUCKET_RAW_AUDIO, obj_name)
+        count = len(object_names)
+        self._log.info(
+            "session_audio_deleted",
+            session_id=session_id,   # UUID — no PII
+            objects_deleted=count,
+        )
+        return count
+
     def download_model_artifact(self, artifact_name: str) -> bytes:
         """Download a model artifact by name.
 

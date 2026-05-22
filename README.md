@@ -1,0 +1,293 @@
+# TrustSignal AI
+
+**Interview authenticity scoring powered by hybrid streaming + batch analytics.**
+
+TrustSignal AI detects AI-assisted interview fraud in real time and delivers a
+**TrustScore (0–100)** to recruiters within 60 seconds of call end. Five independent
+signal modules analyse the audio and transcript of each interview; a weighted
+aggregation engine combines them into a single, explainable score.
+
+> Built by **OPB — Octavio Pérez Bravo · Data & AI Strategy Architect**
+
+---
+
+## Business Case
+
+| KPI | Target |
+|-----|--------|
+| Time-to-fraud-detection | Within the first 10 minutes of the interview |
+| False positive rate | < 2 % (never penalise nervous-but-legitimate candidates) |
+| TrustScore delivery | ≤ 60 s after `POST /session/{id}/end` |
+
+---
+
+## Architecture
+
+```
+WebRTC / WebSocket audio
+          │
+          ▼
+  Kafka: interview-audio-stream  (24 h retention)
+          │
+          ▼  (Python consumer — low latency)
+  OpenAI Whisper STT
+          │
+          ├──► MinIO raw-audio/  (90-day lifecycle)
+          │
+          ▼
+  Kafka: interview-text-stream  (7 d retention)
+          │
+          ▼
+  Delta Lake  ←── DeltaWriter (ACID upserts)
+          │
+          └──► ML Signal Pipeline
+                  ├── latency.py       Response Latency   (weight 0.25)
+                  ├── audio_bg.py      Background Audio   (weight 0.20)
+                  ├── perplexity.py    LM Perplexity      (weight 0.20)
+                  ├── burstiness.py    Burstiness         (weight 0.20)
+                  └── similarity.py   Semantic Similarity (weight 0.15)
+                            │
+                            ▼
+                    trust_score.py → TrustScore 0–100
+                            │
+                            ▼
+                    FastAPI  →  Streamlit Dashboard
+```
+
+**Nightly Batch (Airflow DAG — see below):**
+Delta Lake → extract suspicious → embed → retrain classifiers → update answer bank → Slack notify
+
+---
+
+## Signal Modules
+
+| Module | What it measures | High suspicion indicator |
+|--------|-----------------|--------------------------|
+| **Response Latency** | CV of inter-turn latency | CV < 0.15 (constant ≈ LLM + TTS delay) |
+| **Background Audio** | MFCC-based keyboard detection | Keyboard detected during silence windows |
+| **Perplexity** | LM perplexity of transcript | ppl < 30 (too predictable — AI-generated) |
+| **Burstiness** | Sentence-length CV | CV < 0.20 (homogeneous — AI-generated) |
+| **Semantic Similarity** | Max cosine vs. LLM answer bank | similarity > 0.65 |
+
+TrustScore formula:
+
+```
+suspicion_index = Σ (signal_score_i × weight_i)   ∈ [0, 1]
+TrustScore      = (1 − suspicion_index) × 100      ∈ [0, 100]
+flagged         = suspicion_index ≥ 0.65
+```
+
+---
+
+## Nightly Retraining DAG
+
+`airflow/dags/retraining_dag.py` — scheduled daily at **02:00 UTC**.
+
+### Task Dependency Graph
+
+```
+  ┌─────────────────────┐
+  │  extract_suspicious  │  Query Delta Lake for suspicious_flag=true
+  │  (DuckDB scan)       │  segments from the past 24 h
+  └──────────┬──────────┘
+             │
+             ▼
+  ┌──────────────────────┐
+  │  compute_embeddings  │  Batch-embed CANDIDATE texts with
+  │  (sentence-xformers) │  all-MiniLM-L6-v2; update vector store
+  └──────────┬───────────┘
+             │
+             ▼
+  ┌───────────────────────────┐        ┌──────────────────────┐
+  │  retrain_bg_classifier    │──────► │  update_answer_bank  │
+  │  (RandomForest + MFCC)    │        │  (append JSONL pairs) │
+  │  → YYYYMMDD_bg_clf.pkl   │        └──────────┬───────────┘
+  └──────────────┬────────────┘                   │
+                 │                                │
+                 └──────────────┬─────────────────┘
+                                ▼
+                       ┌──────────────┐
+                       │    notify    │  Slack Block Kit summary:
+                       │  (requests)  │  segments, embeddings, classifier,
+                       └──────────────┘  answer bank pairs
+```
+
+### Task Details
+
+| Task | Description |
+|------|-------------|
+| `extract_suspicious` | DuckDB `parquet_scan()` over `transcript_segments/**/*.parquet`; filters `suspicious_flag = true` in the 24 h window |
+| `compute_embeddings` | Embeds CANDIDATE segment texts; appends to `VECTOR_STORE_PATH/{embeddings.npy, metadata.json}` |
+| `retrain_bg_classifier` | Downloads suspicious-session audio from MinIO; extracts MFCC features; retrains `BackgroundAudioClassifier` if ≥ 10 new samples; uploads `YYYYMMDD_bg_classifier.pkl` to `model-artifacts/` |
+| `update_answer_bank` | Extracts RECRUITER→CANDIDATE Q&A pairs; deduplicates; appends to `data/llm_answer_bank.jsonl` |
+| `notify` | Sends Slack Block Kit payload to `SLACK_WEBHOOK_URL`; falls back to structured log if env var not set |
+
+All tasks inherit `retries=2`, `retry_delay=timedelta(minutes=5)` from `DEFAULT_ARGS`.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Message broker | Apache Kafka |
+| Object storage | MinIO (local) / AWS S3 (prod) |
+| Table format | Delta Lake (PySpark + delta-spark) |
+| Orchestration | Apache Airflow (`@daily` DAG) |
+| STT | OpenAI Whisper (local) / Cloud Whisper fallback |
+| Embeddings | Sentence-Transformers `all-MiniLM-L6-v2` |
+| Audio classification | LibROSA (MFCC) + scikit-learn RandomForest |
+| NLP scoring | HuggingFace `distilgpt2` (perplexity) |
+| API | FastAPI + JWT HS256 + Pydantic |
+| Dashboard | Streamlit + Plotly |
+| Ad-hoc queries | DuckDB `parquet_scan()` over Delta tables |
+| Observability | structlog (JSON) — no PII in logs |
+
+---
+
+## Repository Structure
+
+```
+trustsignal/
+├── api/main.py                  FastAPI endpoints (auth, session, signals, score, report)
+├── airflow/
+│   ├── dags/retraining_dag.py  Nightly retraining DAG (5 tasks)
+│   └── sensors/
+│       └── kafka_lag_sensor.py  Waits for Kafka consumer lag = 0
+├── dashboard/
+│   ├── app.py                   Streamlit recruiter dashboard
+│   ├── api_client.py            HTTP client for FastAPI
+│   └── pdf_export.py            PDF report generation (fpdf2)
+├── ingestion/
+│   ├── producer.py              WebRTC/WS → Kafka
+│   └── consumer.py              Kafka → STT → interview-text-stream
+├── ml/
+│   ├── features/
+│   │   ├── latency.py           Response latency CV scorer
+│   │   ├── audio_bg.py          MFCC + RandomForest keyboard detector
+│   │   ├── perplexity.py        distilgpt2 perplexity scorer
+│   │   └── burstiness.py        Sentence-length CV scorer
+│   ├── embeddings/
+│   │   └── similarity.py        Cosine similarity vs. LLM answer bank
+│   └── trust_score.py           Weighted aggregation → TrustScore
+├── storage/
+│   ├── delta_writer.py          PySpark + delta-spark ACID upserts
+│   ├── object_store.py          MinIO audio + artifact persistence
+│   └── lifecycle.py             MinIO 90-day lifecycle policy
+├── transcription/
+│   └── whisper_service.py       Whisper STT wrapper
+├── data/
+│   └── llm_answer_bank.jsonl    59+ canonical AI interview answer Q&A pairs
+├── research/notebooks/
+│   ├── audio_bg_eda.ipynb       MFCC feature EDA + classifier training
+│   └── nlp_signals_eda.ipynb    Perplexity + burstiness + similarity EDA
+├── scripts/
+│   ├── smoke_test.sh            Service health checks
+│   └── query_delta.py           DuckDB CLI for Delta Lake ad-hoc queries
+├── tests/
+│   ├── unit/                    Isolated tests; no I/O; models mocked
+│   └── integration/             Full-stack tests against real/mock services
+├── config.py                    Centralised env-var loading (python-dotenv)
+├── docker-compose.yml           Kafka, MinIO, Airflow, Spark local stack
+├── planning/
+│   ├── CLAUDE.md                Agent constitution and hard rules
+│   ├── PLAN.md                  Sprint roadmap
+│   └── BRAND.md                 Visual identity — all UI decisions live here
+└── requirements.txt
+```
+
+---
+
+## How to Run Locally
+
+### Prerequisites
+
+- Docker & Docker Compose
+- Python 3.11+
+
+### 1. Start the infrastructure stack
+
+```bash
+docker-compose up -d
+```
+
+Services started: Zookeeper, Kafka, MinIO, Airflow (webserver + scheduler + worker), Spark.
+
+### 2. Install Python dependencies
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+### 3. Configure environment
+
+```bash
+cp .env.example .env
+# Edit .env — set FASTAPI_SECRET_KEY, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, etc.
+```
+
+### 4. Run the API
+
+```bash
+uvicorn api.main:app --reload --port 8000
+```
+
+### 5. Run the dashboard
+
+```bash
+streamlit run dashboard/app.py
+```
+
+Open `http://localhost:8501` → click **Load Demo Data** to explore a synthetic flagged session.
+
+### 6. Run tests
+
+```bash
+pytest tests/unit/ -v
+pytest tests/integration/ -v   # requires Docker stack
+```
+
+### 7. Trigger a manual DAG run (dev only)
+
+```bash
+airflow dags trigger trustsignal_nightly_retraining
+```
+
+> **CLAUDE.md §8**: ML model updates must run via the DAG — never ad-hoc in production.
+
+---
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka broker address |
+| `KAFKA_TOPIC_AUDIO` | `interview-audio-stream` | Raw audio topic |
+| `KAFKA_TOPIC_TEXT` | `interview-text-stream` | Transcript topic |
+| `MINIO_ENDPOINT` | `http://localhost:9000` | MinIO endpoint |
+| `MINIO_ACCESS_KEY` | `minioadmin` | MinIO access key |
+| `MINIO_SECRET_KEY` | `minioadmin` | MinIO secret key |
+| `DELTA_LAKE_PATH` | `/delta` | Delta Lake base path |
+| `WHISPER_MODEL_SIZE` | `base` | Whisper model size |
+| `OPENAI_API_KEY` | _(empty)_ | Optional cloud Whisper fallback |
+| `VECTOR_STORE_PATH` | `data/vector_store` | Embedding store path |
+| `FASTAPI_SECRET_KEY` | `dev-secret-replace-in-production` | JWT signing key |
+| `SUSPICION_THRESHOLD` | `0.65` | Flag threshold (suspicion_index ≥ this) |
+| `FALSE_POSITIVE_TARGET` | `0.02` | Target FP rate (2 %) |
+| `SLACK_WEBHOOK_URL` | _(empty)_ | Slack Incoming Webhook for DAG notify |
+| `AIRFLOW_HOME` | `/opt/airflow` | Airflow home directory |
+
+---
+
+## Key Design Decisions
+
+1. **Append-only Kafka topics** — Interview data is never modified in the stream; corrections go to Delta Lake only.
+2. **90-day MinIO lifecycle** — Audio is deleted automatically after 90 days (GDPR compliance). Implemented in `storage/lifecycle.py`.
+3. **UUID-only logging** — No PII (`candidate_name`, `email`) ever appears in logs or Kafka payloads. All identifiers are UUIDs.
+4. **False positive guard** — Any flagged candidate receives a mandatory human-readable explanation (`flag_reason`). Silent suppression is prohibited (CLAUDE.md §8).
+5. **Test-injectable dependencies** — All ML models, database connections, and HTTP clients accept optional constructor arguments so unit tests avoid slow I/O.
+6. **DAG-gated model updates** — The `CLAUDE.md` hard rule: classifier retraining only runs via `trustsignal_nightly_retraining`; no ad-hoc triggers in production.
+
+---
+
+*TrustSignal AI — OPB · Octavio Pérez Bravo · Data & AI Strategy Architect*

@@ -32,6 +32,12 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S"]
 
+# ── PII audit ─────────────────────────────────────────────────────────────────
+# Run:  python scripts/pii_audit.py
+# CI:   python scripts/pii_audit.py --path . ; exit code 1 = findings
+# Ruff does not ship a built-in PII rule; the custom script above covers it.
+# The S (bandit) rule-set guards against hardcoded passwords and common secrets.
+
 # ── Black (formatter) ─────────────────────────────────────────────────────────
 [tool.black]
 line-length = 100

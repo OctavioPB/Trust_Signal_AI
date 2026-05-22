@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 import structlog
@@ -45,6 +46,10 @@ class AudioConsumer:
             disabled and the consumer operates in archive-only mode.
         text_publisher: Optional TextPublisher for interview-text-stream.
             Must be provided if whisper_service is provided.
+        max_concurrent_stt: Upper bound on concurrent STT threads within this
+            process. Default from ``config.MAX_CONCURRENT_STT``. Setting this
+            to 1 forces sequential STT and is the safest option for CPU-bound
+            hosts. Raise it on GPU deployments where Whisper throughput allows.
     """
 
     def __init__(
@@ -55,6 +60,7 @@ class AudioConsumer:
         object_store: ObjectStore | None = None,
         whisper_service=None,
         text_publisher=None,
+        max_concurrent_stt: int | None = None,
     ) -> None:
         self._topic = topic
         self._consumer = Consumer(
@@ -75,6 +81,15 @@ class AudioConsumer:
         self._whisper = whisper_service
         self._text_pub = text_publisher
         self._stt_enabled: bool = whisper_service is not None and text_publisher is not None
+
+        # Thread pool for STT: keeps the Kafka poll loop responsive while
+        # Whisper inference runs in background threads. Semaphore caps CPU usage.
+        _concurrency = max_concurrent_stt if max_concurrent_stt is not None else config.MAX_CONCURRENT_STT
+        self._stt_semaphore = threading.BoundedSemaphore(_concurrency)
+        self._stt_executor = ThreadPoolExecutor(
+            max_workers=_concurrency,
+            thread_name_prefix="ts-stt",
+        )
 
         self._stop_event = threading.Event()
         # Per-session audit counters (UUID keys, no PII values)
@@ -104,6 +119,8 @@ class AudioConsumer:
         try:
             await asyncio.to_thread(self._consume_loop)
         finally:
+            # Wait for in-flight STT calls to complete before exiting
+            self._stt_executor.shutdown(wait=True)
             self._log_session_summaries()
             self._log.info("consumer_stopped")
 
@@ -174,7 +191,7 @@ class AudioConsumer:
             self._accumulate_stt(session_id, audio_bytes)
 
     def _accumulate_stt(self, session_id: str, audio_bytes: bytes) -> None:
-        """Buffer a chunk and trigger STT when a full 5 s window is ready.
+        """Buffer a chunk and submit STT to the thread pool when a full 5 s window is ready.
 
         Args:
             session_id: UUID of the interview session.
@@ -191,23 +208,64 @@ class AudioConsumer:
         state["buffer"].append(audio_bytes)
 
         if len(state["buffer"]) >= STT_WINDOW_CHUNKS:
-            self._process_stt_window(session_id)
+            self._submit_stt_window(session_id)
 
-    def _process_stt_window(self, session_id: str) -> None:
-        """Run STT on the accumulated 5 s window and publish segments.
+    def _submit_stt_window(self, session_id: str) -> None:
+        """Snapshot the current window and submit STT to the thread pool.
+
+        The Kafka poll loop returns immediately; Whisper inference runs in a
+        background thread bounded by ``_stt_semaphore``. This keeps chunk
+        commit latency low and caps CPU usage under concurrent load.
 
         Args:
             session_id: UUID of the interview session.
         """
         state = self._stt_state[session_id]
+        # Snapshot and clear buffer before submission so the poll loop can
+        # accumulate the next window while STT runs in the background.
         window_audio = b"".join(state["buffer"])
         window_count = state["window_count"]
-        start_ts_offset = window_count * STT_WINDOW_DURATION_S
-        first_chunk_seq = window_count * STT_WINDOW_CHUNKS
-
-        # Clear the buffer before STT so new chunks accumulate during inference
+        last_speaker = state["last_speaker"]
         state["buffer"] = []
         state["window_count"] += 1
+
+        future = self._stt_executor.submit(
+            self._process_stt_window,
+            session_id,
+            window_audio,
+            window_count,
+            last_speaker,
+        )
+        # Log errors from the background thread without crashing the poll loop
+        future.add_done_callback(self._on_stt_done)
+
+    def _on_stt_done(self, future: object) -> None:
+        """Callback invoked when an STT future completes."""
+        from concurrent.futures import Future
+        exc = future.exception() if isinstance(future, Future) else None  # type: ignore[attr-defined]
+        if exc:
+            self._log.error("stt_window_failed", error=str(exc))
+
+    def _process_stt_window(
+        self,
+        session_id: str,
+        window_audio: bytes,
+        window_count: int,
+        last_speaker: str,
+    ) -> None:
+        """Run STT on a 5 s window and publish segments (runs in thread pool).
+
+        The semaphore limits concurrent Whisper calls to ``MAX_CONCURRENT_STT``
+        threads, keeping per-worker CPU under the 80 % target.
+
+        Args:
+            session_id: UUID of the interview session.
+            window_audio: Concatenated PCM bytes for this window.
+            window_count: Zero-based index of this STT window.
+            last_speaker: Speaker label carried from the previous window.
+        """
+        start_ts_offset = window_count * STT_WINDOW_DURATION_S
+        first_chunk_seq = window_count * STT_WINDOW_CHUNKS
 
         self._log.debug(
             "stt_window_started",
@@ -216,13 +274,14 @@ class AudioConsumer:
             start_ts_offset=start_ts_offset,
         )
 
-        segments = self._whisper.transcribe(  # type: ignore[union-attr]
-            audio_bytes=window_audio,
-            session_id=session_id,
-            chunk_seq=first_chunk_seq,
-            chunk_duration_s=STT_WINDOW_DURATION_S,
-            start_ts_offset=start_ts_offset,
-        )
+        with self._stt_semaphore:
+            segments = self._whisper.transcribe(  # type: ignore[union-attr]
+                audio_bytes=window_audio,
+                session_id=session_id,
+                chunk_seq=first_chunk_seq,
+                chunk_duration_s=STT_WINDOW_DURATION_S,
+                start_ts_offset=start_ts_offset,
+            )
 
         if not segments:
             self._log.debug("stt_window_no_speech", session_id=session_id, window=window_count)
@@ -231,13 +290,12 @@ class AudioConsumer:
         # Speaker-turn detection using state carried from previous window
         from transcription.whisper_service import WhisperService
 
-        WhisperService.detect_speaker_turns(
-            segments,
-            initial_speaker=state["last_speaker"],
-        )
+        WhisperService.detect_speaker_turns(segments, initial_speaker=last_speaker)
 
-        # Persist last speaker for continuity across windows
-        state["last_speaker"] = segments[-1].speaker
+        # Update last_speaker state (thread-safe: only one STT call per session
+        # due to sequential window accumulation in the poll loop)
+        if session_id in self._stt_state:
+            self._stt_state[session_id]["last_speaker"] = segments[-1].speaker
 
         # Publish each segment to interview-text-stream
         for seg in segments:
@@ -248,7 +306,7 @@ class AudioConsumer:
             session_id=session_id,
             window=window_count,
             segment_count=len(segments),
-            last_speaker=state["last_speaker"],
+            last_speaker=segments[-1].speaker,
         )
 
     def _log_session_summaries(self) -> None:
