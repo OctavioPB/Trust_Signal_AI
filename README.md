@@ -172,7 +172,7 @@ trustsignal/
 │   ├── index.html               Google Fonts (Fraunces + Plus Jakarta Sans)
 │   └── vite.config.ts           /api proxy → http://localhost:8000
 ├── dashboard/
-│   ├── app.py                   Streamlit recruiter dashboard (legacy)
+│   ├── legacy/app.py            Streamlit recruiter dashboard (legacy — Sprint 8)
 │   ├── api_client.py            HTTP client for FastAPI
 │   └── pdf_export.py            PDF report generation (fpdf2)
 ├── ingestion/
@@ -262,25 +262,49 @@ uvicorn api.main:app --reload --port 8000
 
 API docs: `http://localhost:8000/docs`
 
-### 5. Run the React dashboard
+### 5. Run the React dashboard (primary UI)
 
 ```bash
 cd frontend
-npm install
-npm run dev
+npm install       # first time only — installs React, Vite, Zustand, Vitest, Playwright
+npm run dev       # starts Vite dev server
 ```
 
-Open `http://localhost:5173` — click **Load Demo** in the sidebar to explore a synthetic flagged session (TrustScore 31.5, suspicion 0.685).
+Open **http://localhost:5173**
 
-The Vite dev server proxies `/api/*` to `http://localhost:8000` — no CORS setup needed in development.
+- Click **Load Demo** in the left sidebar to explore a synthetic flagged session (TrustScore 31.5, suspicion 0.685) — no API needed.
+- To connect to a live session: enter a Recruiter ID → click **Load Session** → enter a Session ID.
+
+> **Vite proxy:** all `/api/*` requests are forwarded to `http://localhost:8000` automatically. No manual CORS configuration is required during development.
+
+#### Frontend scripts
+
+| Command | What it does |
+|---------|-------------|
+| `npm run dev` | Vite HMR dev server on port 5173 |
+| `npm run build` | Production build → `frontend/dist/` |
+| `npm run preview` | Preview production build locally |
+| `npm run lint` | ESLint (TypeScript strict) |
+| `npm test` | Vitest unit tests (fetch mocked) |
+| `npx playwright test` | Playwright e2e smoke tests (requires dev server) |
+
+#### Playwright setup (first time)
+
+```bash
+cd frontend
+npx playwright install chromium   # downloads Chromium browser
+npx playwright test               # runs e2e/demo.spec.ts
+```
 
 ### 6. Run the legacy Streamlit dashboard (optional)
 
 ```bash
-streamlit run dashboard/app.py
+streamlit run dashboard/legacy/app.py
 ```
 
 Open `http://localhost:8501` → click **Load Demo Data**.
+
+> The Streamlit dashboard is retained for reference only. The React app (`frontend/`) is the primary UI for all new work.
 
 ### 7. Run tests
 
@@ -351,7 +375,7 @@ Interactive docs: `http://localhost:8000/docs`
 4. **False positive guard** — Any flagged candidate receives a mandatory human-readable explanation (`flag_reason`). Silent suppression is prohibited (CLAUDE.md §8).
 5. **Lazy infrastructure imports** — `minio` and `fpdf2` are imported at call-site, not module level; the API and dashboard start without those packages installed.
 6. **DAG-gated model updates** — The `CLAUDE.md` hard rule: classifier retraining only runs via `trustsignal_nightly_retraining`; no ad-hoc triggers in production.
-7. **React over Streamlit** — The primary dashboard is a React 18 + TypeScript 5.4 SPA (Sprint 11–13); Streamlit is retained under `dashboard/` as a legacy reference.
+7. **React over Streamlit** — The primary dashboard is a React 18 + TypeScript 5.4 SPA (Sprint 11–13); Streamlit is retained under `dashboard/legacy/` for reference only and receives no new feature work.
 
 ---
 
