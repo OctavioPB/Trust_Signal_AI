@@ -1,4 +1,16 @@
-"""TrustSignal AI — Recruiter Dashboard (Streamlit).
+"""TrustSignal AI — Recruiter Dashboard (Streamlit) [LEGACY].
+
+.. deprecated::
+    This Streamlit dashboard was the primary UI through Sprint 12.
+    As of Sprint 13 it is superseded by the React frontend at ``frontend/``.
+    It remains runnable for reference and back-compat testing, but receives
+    no new feature work.  Run the React app instead:
+
+    .. code-block:: bash
+
+        cd frontend
+        npm install
+        npm run dev   # http://localhost:5173
 
 Sprint 8: Full implementation.
 
@@ -31,9 +43,9 @@ from typing import Any
 import plotly.graph_objects as go
 import streamlit as st
 
-# Ensure the project root is on sys.path so both `streamlit run dashboard/app.py`
-# (which adds dashboard/ to sys.path) and `python -m dashboard.app` work.
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# Ensure the project root is on sys.path so both `streamlit run dashboard/legacy/app.py`
+# (which adds dashboard/legacy/ to sys.path) and `python -m dashboard.legacy.app` work.
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
@@ -526,7 +538,7 @@ def _render_navbar(session_status: str | None) -> None:
             <div style="display:flex;align-items:center;gap:12px;">
                 {live_pill}
                 <span style="font-family:'Plus Jakarta Sans',sans-serif;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.35);border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:5px 10px;">
-                    Sprint&nbsp;8
+                    Legacy
                 </span>
             </div>
         </div>
@@ -1283,7 +1295,7 @@ def main() -> None:
 
     _render_footer()
 
-    # ── Live polling loop (8.3) ───────────────────────────────────────────
+    # ── Live polling loop ─────────────────────────────────────────────────
     # Must be last to avoid interfering with Streamlit widget rendering.
     if (
         st.session_state.get("live_polling")

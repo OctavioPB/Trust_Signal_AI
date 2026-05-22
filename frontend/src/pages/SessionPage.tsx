@@ -3,17 +3,21 @@
  *
  * Layout: Sidebar (left) + scrollable main content (right).
  * Data source: demoStore when isDemo=true, else live FastAPI calls.
- * Polling: 10-second interval on score endpoint while session is "live".
+ * Polling: usePolling hook (10 s interval) while session status is "live".
+ *
+ * PDF download: disabled in demo mode — requires a real session token.
+ * Blob flow: getReportPdf → URL.createObjectURL → programmatic <a> click → revokeObjectURL.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertPanel } from "../components/AlertPanel";
 import { KpiRow } from "../components/KpiRow";
 import { Sidebar } from "../components/Sidebar";
 import { SignalBreakdownChart } from "../components/SignalBreakdownChart";
 import { TranscriptView } from "../components/TranscriptView";
 import { TrustScoreGauge } from "../components/TrustScoreGauge";
-import { ApiError, getReport, getReportPdf, getScore, getToken } from "../services/api";
+import { usePolling } from "../hooks/usePolling";
+import { ApiError, getReport, getReportPdf, getToken } from "../services/api";
 import { useDemoStore } from "../stores/demoStore";
 import type { ReportResponse } from "../types";
 
@@ -27,7 +31,6 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
   );
 }
 
-// ── Section wrapper ─────────────────────────────────────────────────────────
 function Section({ eyebrow, children }: { eyebrow: string; children: React.ReactNode }) {
   return (
     <section>
@@ -38,21 +41,52 @@ function Section({ eyebrow, children }: { eyebrow: string; children: React.React
 }
 
 export function SessionPage() {
-  const [apiUrl, setApiUrl]         = useState("http://localhost:8000");
+  const [apiUrl, setApiUrl]           = useState("http://localhost:8000");
   const [recruiterId, setRecruiterId] = useState("");
-  const [sessionId, setSessionId]   = useState("");
-  const [token, setToken]           = useState<string | null>(null);
-  const [report, setReport]         = useState<ReportResponse | null>(null);
-  const [loading, setLoading]       = useState(false);
-  const [error, setError]           = useState<string | null>(null);
-  const [polling, setPolling]       = useState(false);
-  const pollingRef                  = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [sessionId, setSessionId]     = useState("");
+  const [token, setToken]             = useState<string | null>(null);
+  const [report, setReport]           = useState<ReportResponse | null>(null);
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState<string | null>(null);
+  const [polling, setPolling]         = useState(false);
 
   const { isDemo, scenario, setDemo } = useDemoStore();
 
+  // 13.1 — usePolling hook replaces inline setInterval/useRef pattern
+  const { data: pollData, isPolling } = usePolling(
+    sessionId,
+    10_000,
+    polling && !isDemo,
+    token,
+  );
+
+  // Merge polling score updates into the full report state
+  useEffect(() => {
+    if (!pollData) return;
+    setReport(prev =>
+      prev
+        ? {
+            ...prev,
+            trust_score:     pollData.trust_score,
+            suspicion_index: pollData.suspicion_index,
+            flagged:         pollData.flagged,
+            flag_reason:     pollData.flag_reason,
+            status:          pollData.status,
+            signals:         pollData.signals,
+          }
+        : prev,
+    );
+    if (pollData.status !== "live") setPolling(false);
+  }, [pollData]);
+
+  // Sync sidebar polling indicator with hook state
+  useEffect(() => {
+    if (!isPolling && polling) setPolling(false);
+  }, [isPolling, polling]);
+
   const displayData: ReportResponse | null = isDemo ? scenario : report;
 
-  // ── Load session from live API ──────────────────────────────────────────
+  // ── Load session ────────────────────────────────────────────────────────
   async function handleLoadSession() {
     setError(null);
     setLoading(true);
@@ -69,48 +103,15 @@ export function SessionPage() {
     }
   }
 
-  // ── Load demo mode ──────────────────────────────────────────────────────
   function handleLoadDemo() {
     setError(null);
     setPolling(false);
     setDemo(true);
   }
 
-  // ── Live polling (score endpoint, 10 s) ────────────────────────────────
-  useEffect(() => {
-    if (pollingRef.current) clearInterval(pollingRef.current);
-    if (!polling || isDemo || !token || !sessionId) return;
-
-    pollingRef.current = setInterval(async () => {
-      try {
-        const score = await getScore(token, sessionId);
-        setReport(prev =>
-          prev
-            ? {
-                ...prev,
-                trust_score:      score.trust_score,
-                suspicion_index:  score.suspicion_index,
-                flagged:          score.flagged,
-                flag_reason:      score.flag_reason,
-                status:           score.status,
-                signals:          score.signals,
-              }
-            : prev,
-        );
-        if (score.status !== "live") setPolling(false);
-      } catch {
-        // ignore transient errors during polling
-      }
-    }, 10_000);
-
-    return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
-    };
-  }, [polling, isDemo, token, sessionId]);
-
-  // ── PDF download ────────────────────────────────────────────────────────
+  // 13.2 — PDF download; disabled in demo mode (no real token/session)
   async function handleDownloadPdf() {
-    if (!token || !sessionId) return;
+    if (isDemo || !token || !sessionId) return;
     try {
       const blob = await getReportPdf(token, sessionId);
       const url  = URL.createObjectURL(blob);
@@ -124,7 +125,7 @@ export function SessionPage() {
     }
   }
 
-  // ── Layout styles ───────────────────────────────────────────────────────
+  // ── Styles ──────────────────────────────────────────────────────────────
   const layout: React.CSSProperties = {
     display: "flex",
     minHeight: "calc(100vh - 52px)",
@@ -141,6 +142,7 @@ export function SessionPage() {
     minWidth: 0,
   };
 
+  const pdfBtnDisabled = isDemo || !token || !sessionId;
   const pdfBtn: React.CSSProperties = {
     alignSelf: "flex-start",
     padding: "9px 20px",
@@ -153,8 +155,8 @@ export function SessionPage() {
     fontWeight: 600,
     letterSpacing: "1.5px",
     textTransform: "uppercase",
-    cursor: "pointer",
-    opacity: !token || !sessionId ? 0.4 : 1,
+    cursor: pdfBtnDisabled ? "not-allowed" : "pointer",
+    opacity: pdfBtnDisabled ? 0.4 : 1,
   };
 
   // ── Render ──────────────────────────────────────────────────────────────
@@ -175,7 +177,7 @@ export function SessionPage() {
       />
 
       <main style={main}>
-        {/* Hero section */}
+        {/* Hero banner — dark, grid texture, gauge embedded */}
         <div style={{
           backgroundColor: "var(--primary)",
           backgroundImage: `linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px)`,
@@ -201,7 +203,10 @@ export function SessionPage() {
             </h1>
             {displayData && (
               <p style={{ fontFamily: "var(--fb)", fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 10, lineHeight: 1.65 }}>
-                Recruiter&nbsp;<code style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{displayData.recruiter_id.slice(0, 8)}…</code>
+                Recruiter&nbsp;
+                <code style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
+                  {displayData.recruiter_id.slice(0, 8)}…
+                </code>
                 &emsp;·&emsp;
                 {new Date(displayData.start_ts * 1000).toLocaleString()}
                 {isDemo && (
@@ -214,14 +219,12 @@ export function SessionPage() {
           </div>
         </div>
 
-        {/* Error banner */}
         {error && (
           <div style={{ backgroundColor: "var(--red-bg)", border: "1px solid var(--red)", borderRadius: 8, padding: "12px 16px", fontFamily: "var(--fb)", fontSize: 13, color: "var(--red)" }}>
             {error}
           </div>
         )}
 
-        {/* Empty state */}
         {!displayData && !error && (
           <div style={{ textAlign: "center", padding: "48px 0" }}>
             <p style={{ fontFamily: "var(--fb)", fontSize: 14, color: "var(--mid)" }}>
@@ -230,14 +233,12 @@ export function SessionPage() {
           </div>
         )}
 
-        {/* KPI row */}
         {displayData && (
           <Section eyebrow="Key Metrics">
             <KpiRow data={displayData} />
           </Section>
         )}
 
-        {/* Signal breakdown */}
         {displayData && (
           <Section eyebrow="Signal Breakdown">
             <div style={{ backgroundColor: "var(--white)", borderRadius: 12, boxShadow: "var(--shadow-card)", padding: "20px 24px" }}>
@@ -246,7 +247,6 @@ export function SessionPage() {
           </Section>
         )}
 
-        {/* Flag alert */}
         {displayData && (
           <AlertPanel
             flagged={displayData.flagged}
@@ -255,7 +255,6 @@ export function SessionPage() {
           />
         )}
 
-        {/* Transcript */}
         {displayData && displayData.turns.length > 0 && (
           <Section eyebrow="Transcript">
             <TranscriptView
@@ -264,14 +263,10 @@ export function SessionPage() {
           </Section>
         )}
 
-        {/* PDF download */}
+        {/* PDF download — hidden in demo mode (no real token) */}
         {displayData && !isDemo && (
           <div>
-            <button
-              style={pdfBtn}
-              onClick={handleDownloadPdf}
-              disabled={!token || !sessionId}
-            >
+            <button style={pdfBtn} onClick={handleDownloadPdf} disabled={pdfBtnDisabled}>
               ↓ Download PDF Report
             </button>
           </div>
