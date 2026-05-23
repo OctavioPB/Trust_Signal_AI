@@ -1,90 +1,81 @@
 /**
- * Per-turn transcript with suspicion heat colouring.
+ * TranscriptView — per-turn transcript with suspicion heat colouring.
  *
- * Each row background: rgba(224, 52, 72, opacity) where opacity = suspicion_score × 0.35.
- * Speaker label in Plus Jakarta Sans 600; RECRUITER in primary blue, CANDIDATE in dark.
+ * Heat is expressed by a coloured 4px bar on the LEFT of each turn (the
+ * previous version flooded the whole row red, which fought the rest of the
+ * dashboard). Saturation grows with suspicion_score.
+ *
+ * Drop-in — same `turns` prop shape as the original.
  */
 
 interface Turn {
   speaker: string;
   text: string;
   suspicion_score?: number;
+  /** Optional timestamp string like "00:42" — falls through when present. */
+  t?: string;
 }
 
 interface Props {
   turns: Turn[];
 }
 
+function tierColor(sus: number): string {
+  if (sus >= 0.65) return "var(--rojo)";
+  if (sus >= 0.35) return "var(--naranja)";
+  return            "var(--verde)";
+}
+
 export function TranscriptView({ turns }: Props) {
   if (turns.length === 0) {
     return (
-      <div style={{ fontFamily: "var(--fb)", fontSize: 13, color: "var(--mid)", padding: "16px 0" }}>
+      <div className="card" style={{ color: "var(--mid)", fontSize: 13 }}>
         No transcript turns recorded for this session.
       </div>
     );
   }
 
-  const container: React.CSSProperties = {
-    display: "flex",
-    flexDirection: "column",
-    gap: 2,
-    borderRadius: 12,
-    overflow: "hidden",
-    border: "1px solid var(--primary-10)",
-  };
-
   return (
-    <div style={container}>
+    <div className="transcript">
+      <div className="transcript-head">
+        <div className="legend">
+          <span>Suspicion intensity</span>
+          <div className="heat-bar">
+            <span>0.0</span>
+            <div className="grad" />
+            <span>1.0</span>
+          </div>
+        </div>
+        <span style={{ fontSize: 11, color: "var(--mid)", fontFamily: "var(--fm)" }}>
+          {turns.length} turns · candidate-only scored
+        </span>
+      </div>
+
       {turns.map((turn, i) => {
-        const susp = turn.suspicion_score ?? 0;
-        const heatOpacity = susp * 0.35;
-        const isCandidate = turn.speaker.toUpperCase() === "CANDIDATE";
-
-        const row: React.CSSProperties = {
-          display: "flex",
-          gap: 16,
-          padding: "10px 16px",
-          backgroundColor: `rgba(224, 52, 72, ${heatOpacity})`,
-          borderBottom: i < turns.length - 1 ? "1px solid var(--primary-10)" : "none",
-          alignItems: "flex-start",
-        };
-
-        const speakerStyle: React.CSSProperties = {
-          fontFamily: "var(--fb)",
-          fontSize: 9,
-          fontWeight: 600,
-          letterSpacing: "2px",
-          textTransform: "uppercase",
-          flexShrink: 0,
-          width: 84,
-          paddingTop: 2,
-          color: isCandidate ? "var(--dark)" : "var(--primary-60)",
-        };
-
-        const textStyle: React.CSSProperties = {
-          fontFamily: "var(--fb)",
-          fontSize: 13,
-          color: "var(--dark)",
-          lineHeight: 1.65,
-          flex: 1,
-        };
-
-        const suspBadge: React.CSSProperties = {
-          flexShrink: 0,
-          fontFamily: "var(--fb)",
-          fontSize: 8,
-          fontWeight: 600,
-          color: susp >= 0.65 ? "var(--red)" : susp >= 0.35 ? "var(--orange)" : "var(--mid)",
-          paddingTop: 2,
-          letterSpacing: "0.5px",
-        };
-
+        const sus = turn.suspicion_score ?? 0;
+        const isCand = turn.speaker.toUpperCase() === "CANDIDATE";
+        const color = tierColor(sus);
+        const intensity = Math.min(1, sus * 1.2);
         return (
-          <div key={i} style={row}>
-            <span style={speakerStyle}>{turn.speaker}</span>
-            <span style={textStyle}>{turn.text}</span>
-            {turn.suspicion_score !== undefined && (
-              <span style={suspBadge}>{susp.toFixed(2)}</span>
+          <div key={i} className={"turn " + (isCand ? "candidate" : "recruiter")}>
+            <div
+              className="heat"
+              style={{
+                background: isCand ? color : "var(--primary-10)",
+                opacity: isCand ? 0.35 + intensity * 0.65 : 0.4,
+              }}
+            />
+            <div>
+              <div className={"speaker " + (isCand ? "candidate" : "recruiter")}>
+                {turn.speaker}
+                {turn.t && <span className="timestamp">{turn.t}</span>}
+              </div>
+            </div>
+            <div className="text">{turn.text}</div>
+            {isCand && (
+              <div className="susp" style={{ color }}>
+                {sus.toFixed(2)}
+              </div>
             )}
           </div>
         );

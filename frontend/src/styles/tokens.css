@@ -1,108 +1,162 @@
-/* TrustSignal AI — Design Tokens (source of truth: planning/BRAND.md) */
-
-/*
- * WCAG 2.1 AA Contrast Audit
- * Threshold: 4.5:1 normal text · 3:1 large text (≥18px regular or ≥14px bold)
+/* TrustSignal AI — Design Tokens
+ * Now grounded in the OPB Design System.
  *
- * Light theme pairs — verified:
- *   #1C1C2E  on #F4F6F9  → 14.3:1  ✓ AAA   (body text on page bg)
- *   #1C1C2E  on #FFFFFF  → 18.1:1  ✓ AAA   (body text on card)
- *   #6B7280  on #FFFFFF  →  4.6:1  ✓ AA    (captions, labels)
- *   #6B7280  on #F4F6F9  →  4.2:1  ✓ AA    (captions on page bg — large text only)
- *   #003366  on #F4F6F9  → 10.8:1  ✓ AAA   (primary on page bg)
- *   #003366  on #C8982A  →  4.6:1  ✓ AA    (Load Session button text on gold)
- *   #FFFFFF  on #003366  → 15.2:1  ✓ AAA   (white on primary — nav, hero)
- *   #E8C46A  on #003366  →  8.2:1  ✓ AAA   (gold-light on primary — nav active)
- *   #C8982A  on #003366  →  4.6:1  ✓ AA    (gold on primary — eyebrow labels)
- *   #E03448  on #FDEAEA  →  4.5:1  ✓ AA    (red on red-bg — alert text)
- *   #27B97C  on #E0F7EF  →  4.5:1  ✓ AA    (green on green-bg — success text)
- *   #F07020  on #FEF0E6  →  4.5:1  ✓ AA    (orange on orange-bg — warning text)
+ * - Existing legacy aliases (--red, --green, --orange, --text-h1, etc.) are
+ *   kept so any leftover style code still resolves.
+ * - New OPB tokens (--rojo, --verde, --naranja, --primary-*, --fd, --fb)
+ *   match the canonical OPB sheet so the design speaks the same language.
  *
- * Known low-contrast exceptions (brand/decorative):
- *   rgba(255,255,255,0.45) on #003366 → ~3.3:1  ✗ AA (fails for <18px text)
- *     → Nav inactive links; decorative. Active state (#E8C46A) passes AAA.
- *   rgba(255,255,255,0.4)  on #003366 → ~3.0:1  ✗ AA
- *     → Nav centre title; purely decorative label, not interactive.
+ * Source of truth for the OPB tokens: /opb-tokens.css in the design system
+ * repo. If a new token lands there, mirror it here.
  *
- * Dark theme pairs — verified:
- *   #F4F6F9  on #12121E  → 15.5:1  ✓ AAA   (body text on dark page bg)
- *   #9CA3AF  on #1C1C2E  →  4.6:1  ✓ AA    (mid text on dark card)
- *   #E8C46A  on #003366  →  8.2:1  ✓ AAA   (gold-light on primary — unchanged)
+ * WCAG 2.1 AA Contrast Audit (verified):
+ *   #1C1C2E  on #FFFFFF  → 18.1:1  ✓ AAA
+ *   #6B7280  on #FFFFFF  →  4.6:1  ✓ AA
+ *   #003366  on #F4F6F9  → 10.8:1  ✓ AAA
+ *   #003366  on #C8982A  →  4.6:1  ✓ AA
+ *   #FFFFFF  on #003366  → 15.2:1  ✓ AAA
+ *   #E8C46A  on #003366  →  8.2:1  ✓ AAA
+ *   #C8982A  on #003366  →  4.6:1  ✓ AA
  */
 
+
 :root {
-  /* ── Colour palette ─────────────────────────────────────────── */
+  /* ── PRIMARY (navy) ───────────────────────────────────────── */
   --primary:    #003366;
   --primary-80: #1A4D80;
   --primary-60: #336699;
   --primary-30: #99BBDD;
   --primary-10: #E0EAF4;
+
+  /* ── GOLD ─────────────────────────────────────────────────── */
   --gold:       #C8982A;
   --gold-light: #E8C46A;
+
+  /* ── NEUTRALS ─────────────────────────────────────────────── */
   --dark:       #1C1C2E;
   --mid:        #6B7280;
   --light:      #F4F6F9;
   --white:      #FFFFFF;
 
-  /* Semantic / signal colours */
-  --green:      #27B97C;
-  --green-bg:   #E0F7EF;
-  --orange:     #F07020;
-  --orange-bg:  #FEF0E6;
-  --red:        #E03448;
-  --red-bg:     #FDEAEA;
+  /* ── DATA / SEMANTIC COLOURS (OPB families) ───────────────── */
+  --verde-dark:  #0D5C3A;
+  --verde:       #27B97C;
+  --verde-soft:  #7DD9B0;
+  --verde-ice:   #E0F7EF;
 
-  /* ── Typography ─────────────────────────────────────────────── */
-  --fd: 'Fraunces', Georgia, serif;
-  --fb: 'Plus Jakarta Sans', sans-serif;
+  --naranja-dark:#7A3800;
+  --naranja:     #F07020;
+  --naranja-soft:#F7AF80;
+  --naranja-ice: #FEF3E8;
 
-  /* ── Type scale ─────────────────────────────────────────────── */
-  --text-hero:    48px;
-  --text-h1:      32px;
-  --text-h2:      22px;
-  --text-h3:      16px;
-  --text-body:    15px;
-  --text-caption: 12px;
-  --text-label:   10px;
-  --text-code:    13px;
+  --rojo-dark:   #8B1D27;
+  --rojo:        #E03448;
+  --rojo-soft:   #EF8B94;
+  --rojo-ice:    #FDECEE;
 
-  /* ── Spacing ────────────────────────────────────────────────── */
-  --gap-sm:   8px;
-  --gap-md:   16px;
-  --gap-lg:   24px;
-  --gap-xl:   40px;
-  --gap-xxl:  96px;
+  --morado-dark: #3D1A6E;
+  --morado:      #7C4DBD;
+  --morado-ice:  #F0EAF9;
 
-  /* ── Shadows / radii ────────────────────────────────────────── */
-  --radius-sm:   8px;
-  --radius-md:  12px;
-  --radius-lg:  14px;
-  --shadow-card: 0 1px 4px rgba(0, 51, 102, 0.08);
-  --shadow-md:   0 2px 12px rgba(0, 51, 102, 0.12);
+  --rosa-dark:   #8A1F4D;
+  --rosa:        #E05080;
+  --rosa-ice:    #FCE7EE;
+
+  /* Legacy aliases — kept so old code keeps working */
+  --green:      var(--verde);
+  --green-bg:   var(--verde-ice);
+  --orange:     var(--naranja);
+  --orange-bg:  var(--naranja-ice);
+  --red:        var(--rojo);
+  --red-bg:     var(--rojo-ice);
+
+  /* Semantic alias used by dashboard.css */
+  --border:     var(--primary-10);
+
+  /* ── TYPOGRAPHY ───────────────────────────────────────────── */
+  --fd: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --fb: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --fm: 'Courier New', 'Courier', monospace;
+
+  --fs-display:  48px;
+  --fs-h1:       32px;
+  --fs-h2:       22px;
+  --fs-h3:       16px;
+  --fs-body:     15px;
+  --fs-small:    12px;
+  --fs-label:    10px;
+  --fs-micro:    9px;
+  --fs-mono:     13px;
+
+  /* Legacy aliases */
+  --text-hero:    var(--fs-display);
+  --text-h1:      var(--fs-h1);
+  --text-h2:      var(--fs-h2);
+  --text-h3:      var(--fs-h3);
+  --text-body:    var(--fs-body);
+  --text-caption: var(--fs-small);
+  --text-label:   var(--fs-label);
+  --text-code:    var(--fs-mono);
+
+  /* ── SPACING ──────────────────────────────────────────────── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  24px;
+  --space-6:  32px;
+  --space-7:  40px;
+  --space-8:  48px;
+  --space-9:  64px;
+  --space-10: 96px;
+
+  /* Legacy aliases */
+  --gap-sm:  var(--space-2);
+  --gap-md:  var(--space-4);
+  --gap-lg:  var(--space-5);
+  --gap-xl:  var(--space-7);
+  --gap-xxl: var(--space-10);
+
+  /* ── RADII ────────────────────────────────────────────────── */
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   14px;
+  --radius-pill: 999px;
+
+  /* ── SHADOWS ──────────────────────────────────────────────── */
+  --shadow-small:    0 1px 4px rgba(0, 51, 102, 0.06);
+  --shadow-card:     0 2px 12px rgba(0, 51, 102, 0.08);
+  --shadow-elevated: 0 4px 24px rgba(0, 51, 102, 0.12);
+
+  /* Legacy aliases */
+  --shadow-md:       var(--shadow-elevated);
+
+  /* ── MOTION ───────────────────────────────────────────────── */
+  --transition-fast: 0.15s ease;
+  --transition:      0.2s ease;
+  --transition-slow: 0.3s ease;
+
+  /* ── LAYOUT ───────────────────────────────────────────────── */
+  --nav-h:        60px;
+  --rail-w:       288px;
+  --content-max:  1240px;
 }
 
-/* ── Dark theme overrides ───────────────────────────────────────────────────
- * Applied via data-theme="dark" on <html> (written by themeStore.toggle()).
- * Nav and hero banners use hard-coded #003366 and are unaffected by these
- * overrides — they remain dark in both themes by design (BRAND.md §Nav).
- * ───────────────────────────────────────────────────────────────────────── */
+/* ── Dark theme overrides ──────────────────────────────────── */
 [data-theme="dark"] {
-  /* Surface colours — inverted */
-  --light:  #12121E;   /* page background */
-  --white:  #1C1C2E;   /* card background  */
-  --dark:   #F4F6F9;   /* primary text     */
-  --mid:    #9CA3AF;   /* secondary text — raised from #6B7280 for dark-bg AA */
-
-  /* Primary tints — darkened so they read on dark surfaces */
-  --primary-10: #1A2A3E;
-  --primary-30: #2A4A6A;
-
-  /* Semantic backgrounds — deep versions for dark surfaces */
-  --red-bg:    #3D1520;
-  --green-bg:  #0D2E20;
-  --orange-bg: #2E1A0A;
-
-  /* Shadows — stronger on dark backgrounds */
-  --shadow-card: 0 1px 6px rgba(0, 0, 0, 0.4);
-  --shadow-md:   0 4px 20px rgba(0, 0, 0, 0.5);
+  --light:     #12121E;
+  --white:     #1C1C2E;
+  --dark:      #F4F6F9;
+  --mid:       #9CA3AF;
+  --primary-10:#1A2A3E;
+  --primary-30:#2A4A6A;
+  --rojo-ice:    #3D1520;
+  --verde-ice:   #0D2E20;
+  --naranja-ice: #2E1A0A;
+  --morado-ice:  #1E1430;
+  --rosa-ice:    #2A1320;
+  --shadow-small:    0 1px 6px rgba(0, 0, 0, 0.35);
+  --shadow-card:     0 2px 14px rgba(0, 0, 0, 0.45);
+  --shadow-elevated: 0 4px 24px rgba(0, 0, 0, 0.55);
 }

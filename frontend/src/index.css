@@ -15,6 +15,7 @@ body {
 
 body {
   background-color: #F4F6F9; /* var(--light) — tokens.css is the source of truth */
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
