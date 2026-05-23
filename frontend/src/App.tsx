@@ -11,6 +11,7 @@ import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { ModelsPage } from "./pages/ModelsPage";
 import { SessionPage } from "./pages/SessionPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { InfoPage } from "./pages/InfoPage";
 import { TopBar, type TopBarPage } from "./components/TopBar";
 import { useThemeStore } from "./stores/themeStore";
 
@@ -34,6 +35,7 @@ export default function App() {
 
       {page === "models" && <ModelsPage />}
       {page === "settings" && <SettingsPage />}
+      {page === "info"     && <InfoPage />}
 
       <footer className="foot">
         <div>

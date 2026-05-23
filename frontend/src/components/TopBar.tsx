@@ -12,7 +12,7 @@
 
 import { useState, useEffect, useRef } from "react";
 
-export type TopBarPage = "session" | "analytics" | "models" | "settings";
+export type TopBarPage = "session" | "analytics" | "models" | "settings" | "info";
 
 interface Props {
   page: TopBarPage;
@@ -27,6 +27,7 @@ const LINKS: { key: TopBarPage; label: string }[] = [
   { key: "analytics", label: "Analytics" },
   { key: "models",    label: "Models"    },
   { key: "settings",  label: "Settings"  },
+  { key: "info",      label: "Info"      },
 ];
 
 // ── User chip + dropdown ──────────────────────────────────────────────────────
