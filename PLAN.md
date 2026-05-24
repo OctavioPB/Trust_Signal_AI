@@ -86,7 +86,7 @@ and documentation must reflect that framing. It is not surveillance.
 **Goal:** Parse resume documents and compute AI-generation signal scores per section.
 
 ### Extraction
-- [ ] `ingestion/resume_parser.py`
+- [x] `ingestion/resume_parser.py`
   - PDF: `PyMuPDF` (fitz)
   - DOCX: `python-docx`
   - Plain text: UTF-8 passthrough
@@ -94,25 +94,25 @@ and documentation must reflect that framing. It is not surveillance.
   - Strip candidate name, email, phone before any log output (CLAUDE.md §8.6 — no PII in logs)
 
 ### ML signals
-- [ ] `ml/features/resume_perplexity.py` — GPT-2 perplexity per section; reuse `perplexity.py` interface
-- [ ] `ml/features/resume_burstiness.py` — sentence-length variance per section; reuse `burstiness.py`
-- [ ] `ml/features/vocab_richness.py` — type-token ratio + hapax ratio; low TTR → AI signal
-- [ ] `ml/features/section_uniformity.py` — cross-section style variance via embedding cosine distance; uniform style → AI signal
+- [x] `ml/features/resume_perplexity.py` — GPT-2 perplexity per section; reuse `perplexity.py` interface
+- [x] `ml/features/resume_burstiness.py` — sentence-length variance per section; reuse `burstiness.py`
+- [x] `ml/features/vocab_richness.py` — type-token ratio + hapax ratio; low TTR → AI signal
+- [x] `ml/features/section_uniformity.py` — cross-section style variance via embedding cosine distance; uniform style → AI signal
 
 ### Aggregation
-- [ ] `ml/resume_score.py` — weighted aggregate → `ResumeAIScore` (0–100, higher = more suspicious)
+- [x] `ml/resume_score.py` — weighted aggregate → `ResumeAIScore` (0–100, higher = more suspicious)
   - Default weights: perplexity 30%, burstiness 25%, vocab_richness 25%, section_uniformity 20%
   - Write result to DeltaLake `resume_scores` table (versioned: `YYYYMMDD_resume_model.pkl`)
-- [ ] Alert payload: if `ResumeAIScore ≥ PRESCREENING_THRESHOLD` → attach human-readable explanation per signal (CLAUDE.md §8.2)
+- [x] Alert payload: if `ResumeAIScore ≥ PRESCREENING_THRESHOLD` → attach human-readable explanation per signal (CLAUDE.md §8.2)
 
 ### Orchestration
-- [ ] `airflow/dags/resume_scoring_dag.py` — nightly batch; `retries=2`, `retry_delay=timedelta(minutes=5)`; DAG-gated — no ad-hoc triggers in production (CLAUDE.md §8.5)
+- [x] `airflow/dags/resume_scoring_dag.py` — nightly batch; `retries=2`, `retry_delay=timedelta(minutes=5)`; DAG-gated — no ad-hoc triggers in production (CLAUDE.md §8.5)
 
 ### Tests
-- [ ] `tests/unit/test_resume_parser.py` — section splitting, PII strip
-- [ ] `tests/unit/test_vocab_richness.py` — fixture: low-TTR AI paragraph vs. high-TTR human paragraph
-- [ ] `tests/unit/test_section_uniformity.py` — fixture: uniform AI sections vs. varied human sections
-- [ ] `tests/unit/test_resume_score.py` — fixture regression: AI resume scores ≥ 65, human resume ≤ 35
+- [x] `tests/unit/test_resume_parser.py` — section splitting, PII strip
+- [x] `tests/unit/test_vocab_richness.py` — fixture: low-TTR AI paragraph vs. high-TTR human paragraph
+- [x] `tests/unit/test_section_uniformity.py` — fixture: uniform AI sections vs. varied human sections
+- [x] `tests/unit/test_resume_score.py` — fixture regression: AI resume scores ≥ 65, human resume ≤ 35
 
 ---
 
