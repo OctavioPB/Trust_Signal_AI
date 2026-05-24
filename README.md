@@ -210,9 +210,7 @@ trustsignal/
 ├── config.py                    Centralised env-var loading (python-dotenv)
 ├── docker-compose.yml           Kafka, MinIO, Airflow, Spark local stack
 └── planning/
-    ├── CLAUDE.md                Agent constitution and hard rules
-    ├── PLAN.md                  Sprint roadmap (Sprints 1–13)
-    └── BRAND.md                 Visual identity — all UI decisions live here
+
 ```
 
 ---
