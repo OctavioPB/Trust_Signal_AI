@@ -57,3 +57,7 @@ SLACK_WEBHOOK_URL: str = os.getenv("SLACK_WEBHOOK_URL", "")
 # Set SENTRY_DSN to activate Sentry error reporting in the FastAPI service.
 # Leave empty (default) to disable — no external calls are made when unset.
 SENTRY_DSN: str | None = os.getenv("SENTRY_DSN") or None
+
+# ── Pre-screening (Sprint 14+) ─────────────────────────────────────────────────
+KAFKA_TOPIC_RESUME: str = os.getenv("RESUME_KAFKA_TOPIC", "candidate-resume-stream")
+RESUME_MAX_MB: int = int(os.getenv("RESUME_MAX_MB", "10"))

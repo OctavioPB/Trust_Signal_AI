@@ -21,6 +21,7 @@ logger = structlog.get_logger(__name__)
 BUCKET_RAW_AUDIO = "raw-audio"
 BUCKET_MODEL_ARTIFACTS = "model-artifacts"
 BUCKET_DELTA_TABLES = "delta-tables"
+BUCKET_RESUMES = "resumes"
 
 # Strips http:// or https:// from endpoint strings so the minio client gets host:port
 _PROTOCOL_RE = re.compile(r"^https?://", re.IGNORECASE)
@@ -170,6 +171,59 @@ class ObjectStore:
             objects_deleted=count,
         )
         return count
+
+    # ── Resumes ───────────────────────────────────────────────────────────────
+
+    def upload_resume(
+        self,
+        candidate_uuid: str,
+        timestamp_iso: str,
+        file_ext: str,
+        data: bytes,
+    ) -> str:
+        """Upload a candidate resume to the resumes bucket.
+
+        Args:
+            candidate_uuid: UUID of the candidate (no PII).
+            timestamp_iso: ISO 8601 compact timestamp (e.g. "20260523T100000Z").
+            file_ext: Extension without leading dot: "pdf", "docx", or "txt".
+            data: Raw file bytes.
+
+        Returns:
+            Full object path: resumes/{candidate_uuid}/{timestamp_iso}.{file_ext}
+
+        Raises:
+            S3Error: On MinIO / S3 communication failure.
+        """
+        _CONTENT_TYPES = {
+            "pdf":  "application/pdf",
+            "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "txt":  "text/plain",
+        }
+        object_name = f"{candidate_uuid}/{timestamp_iso}.{file_ext}"
+        try:
+            self._client.put_object(
+                bucket_name=BUCKET_RESUMES,
+                object_name=object_name,
+                data=io.BytesIO(data),
+                length=len(data),
+                content_type=_CONTENT_TYPES.get(file_ext, "application/octet-stream"),
+            )
+        except S3Error as exc:
+            self._log.error(
+                "resume_upload_failed",
+                candidate_uuid=candidate_uuid,
+                error=str(exc),
+            )
+            raise
+
+        full_path = f"{BUCKET_RESUMES}/{object_name}"
+        self._log.info(
+            "resume_uploaded",
+            candidate_uuid=candidate_uuid,  # UUID — no PII
+            path=full_path,
+        )
+        return full_path
 
     def download_model_artifact(self, artifact_name: str) -> bytes:
         """Download a model artifact by name.

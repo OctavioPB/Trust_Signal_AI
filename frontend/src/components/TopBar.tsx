@@ -26,7 +26,6 @@ const LINKS: { key: TopBarPage; label: string }[] = [
   { key: "session",   label: "Sessions"  },
   { key: "analytics", label: "Analytics" },
   { key: "models",    label: "Models"    },
-  { key: "settings",  label: "Settings"  },
   { key: "info",      label: "Info"      },
 ];
 

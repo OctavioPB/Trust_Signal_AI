@@ -31,6 +31,7 @@ from jose import JWTError, jwt
 from pydantic import BaseModel, Field
 
 import config
+from api.candidates import router as _candidates_router
 from ml.trust_score import TrustScoreEngine, TrustScoreResult
 
 # ── Sentry error tracking (optional) ──────────────────────────────────────────
@@ -132,7 +133,7 @@ app = FastAPI(
         "Detects AI-assisted fraud via five signal modules and delivers a "
         "TrustScore (0–100) per interview session."
     ),
-    version="0.7.0",
+    version="0.8.0",
 )
 
 app.add_middleware(
@@ -142,6 +143,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Routers ────────────────────────────────────────────────────────────────────
+app.include_router(_candidates_router)
 
 _bearer = HTTPBearer()
 
@@ -318,7 +322,7 @@ def session_report_pdf(
 @app.get("/health")
 def health() -> dict:
     """Liveness probe used by docker-compose and load balancers."""
-    return {"status": "ok", "version": "0.7.0"}
+    return {"status": "ok", "version": "0.8.0"}
 
 
 @app.post("/auth/token", response_model=TokenResponse)
