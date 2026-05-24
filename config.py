@@ -61,3 +61,9 @@ SENTRY_DSN: str | None = os.getenv("SENTRY_DSN") or None
 # ── Pre-screening (Sprint 14+) ─────────────────────────────────────────────────
 KAFKA_TOPIC_RESUME: str = os.getenv("RESUME_KAFKA_TOPIC", "candidate-resume-stream")
 RESUME_MAX_MB: int = int(os.getenv("RESUME_MAX_MB", "10"))
+
+# ── GitHub repository crawling (Sprint 16+) ────────────────────────────────────
+KAFKA_TOPIC_REPO: str = os.getenv("REPO_KAFKA_TOPIC", "candidate-repo-stream")
+GITHUB_API_TOKEN: str | None = os.getenv("GITHUB_API_TOKEN") or None
+GITHUB_RATE_LIMIT_PER_HOUR: int = int(os.getenv("GITHUB_RATE_LIMIT_PER_HOUR", "5000"))
+CODE_LM_MODEL: str = os.getenv("CODE_LM_MODEL", "microsoft/codebert-base")

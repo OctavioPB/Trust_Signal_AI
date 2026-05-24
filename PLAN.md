@@ -121,23 +121,23 @@ and documentation must reflect that framing. It is not surveillance.
 **Goal:** Crawl public repos via GitHub REST API and stage code artifacts for ML scoring.
 
 ### Crawler
-- [ ] `ingestion/github_crawler.py`
+- [x] `ingestion/github_crawler.py`
   - Auth: `Authorization: Bearer {GITHUB_API_TOKEN}` (token from env; never hardcoded)
   - Fetch: repo metadata, commit history (last 12 months), file tree
   - Filter: source extensions `.py .js .ts .tsx .go .java .rb .rs .cpp .md`
   - Limits: max 500 files/repo, max 10 MB/file; truncate silently, log warning
   - Rate limiting: respect `X-RateLimit-Remaining`; exponential back-off on 429/403
   - UUID assignment: `repo_uuid = uuid5(NAMESPACE_URL, repo_url)` — deterministic, no PII
-- [ ] `ingestion/commit_analyzer.py`
+- [x] `ingestion/commit_analyzer.py`
   - Metrics per repo: commit velocity (commits/week), message length entropy, diff size distribution
   - No author names in output — author_uuid only (CLAUDE.md §8.6)
-- [ ] `ingestion/repo_producer.py` — Kafka producer for `candidate-repo-stream`; chunk by file; `repo_uuid` key
-- [ ] DeltaLake `repo_artifacts` table: `repo_uuid`, `file_path`, `language`, `content_hash`, `commit_count`, `crawled_at`
+- [x] `ingestion/repo_producer.py` — Kafka producer for `candidate-repo-stream`; chunk by file; `repo_uuid` key
+- [x] DeltaLake `repo_artifacts` table: `repo_uuid`, `file_path`, `language`, `content_hash`, `commit_count`, `crawled_at`
 
 ### Tests
-- [ ] `tests/unit/test_github_crawler.py` — mock `httpx` responses; rate-limit back-off; oversized file skip
-- [ ] `tests/unit/test_commit_analyzer.py` — fixture: high-entropy human commits vs. low-entropy uniform AI commits
-- [ ] `tests/integration/test_repo_ingestion.py` — mock API → Kafka → DeltaLake round-trip
+- [x] `tests/unit/test_github_crawler.py` — mock `httpx` responses; rate-limit back-off; oversized file skip
+- [x] `tests/unit/test_commit_analyzer.py` — fixture: high-entropy human commits vs. low-entropy uniform AI commits
+- [x] `tests/integration/test_repo_ingestion.py` — mock API → Kafka → DeltaLake round-trip
 
 ---
 

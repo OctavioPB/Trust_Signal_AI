@@ -22,6 +22,7 @@ BUCKET_RAW_AUDIO = "raw-audio"
 BUCKET_MODEL_ARTIFACTS = "model-artifacts"
 BUCKET_DELTA_TABLES = "delta-tables"
 BUCKET_RESUMES = "resumes"
+BUCKET_REPOS = "repos"
 
 # Strips http:// or https:// from endpoint strings so the minio client gets host:port
 _PROTOCOL_RE = re.compile(r"^https?://", re.IGNORECASE)
@@ -222,6 +223,54 @@ class ObjectStore:
             "resume_uploaded",
             candidate_uuid=candidate_uuid,  # UUID — no PII
             path=full_path,
+        )
+        return full_path
+
+    # ── Repository source files ───────────────────────────────────────────────
+
+    def upload_repo_file(
+        self,
+        repo_uuid: str,
+        file_path: str,
+        content: bytes,
+    ) -> str:
+        """Upload a crawled source file to the repos bucket.
+
+        Args:
+            repo_uuid: UUID of the repository (no PII).
+            file_path: Relative path within the repository (e.g. ``src/main.py``).
+            content: Raw UTF-8 encoded file content.
+
+        Returns:
+            Full object path: repos/{repo_uuid}/{file_path}
+
+        Raises:
+            S3Error: On MinIO / S3 communication failure.
+        """
+        safe_path = file_path.lstrip("/").replace("\\", "/")
+        object_name = f"{repo_uuid}/{safe_path}"
+        try:
+            self._client.put_object(
+                bucket_name=BUCKET_REPOS,
+                object_name=object_name,
+                data=io.BytesIO(content),
+                length=len(content),
+                content_type="text/plain; charset=utf-8",
+            )
+        except S3Error as exc:
+            self._log.error(
+                "repo_file_upload_failed",
+                repo_uuid=repo_uuid,   # UUID — no PII
+                error=str(exc),
+            )
+            raise
+
+        full_path = f"{BUCKET_REPOS}/{object_name}"
+        self._log.debug(
+            "repo_file_uploaded",
+            repo_uuid=repo_uuid,   # UUID — no PII
+            path=full_path,
+            size_bytes=len(content),
         )
         return full_path
 
