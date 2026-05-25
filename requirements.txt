@@ -44,6 +44,8 @@ duckdb>=0.10.0
 # ── Observability ─────────────────────────────────────────────────────────────
 structlog>=24.1.0
 sentry-sdk[fastapi]>=1.43.0
+prometheus-fastapi-instrumentator>=6.1.0
+prometheus-client>=0.20.0
 
 # ── Config ────────────────────────────────────────────────────────────────────
 python-dotenv>=1.0.1

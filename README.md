@@ -64,6 +64,52 @@ Delta Lake → extract suspicious → embed → retrain classifiers → update a
 
 ---
 
+## Pre-Screening Architecture
+
+Candidates are evaluated *before* the interview via resume and repository analysis.
+
+```
+Recruiter uploads resume / links GitHub repo
+          │
+          ├──► Kafka: candidate-resume-stream   (resume text + candidate_uuid)
+          │              │
+          │              ▼  (Airflow DAG: resume_scoring_dag)
+          │         Resume AI Detector
+          │           ├── LM Perplexity       (weight 0.40)
+          │           ├── Burstiness          (weight 0.25)
+          │           ├── Vocab Richness      (weight 0.20)
+          │           └── Section Uniformity  (weight 0.15)
+          │                     │
+          │                     ▼  suspicion score 0–1
+          │
+          └──► Kafka: candidate-repo-stream    (repo contents + candidate_uuid)
+                         │
+                         ▼  (Airflow DAG: resume_scoring_dag)
+                    Repo AI Detector
+                      ├── Code-LM Perplexity  (weight 0.35)
+                      ├── Commit Consistency  (weight 0.25)
+                      ├── Comment Ratio       (weight 0.20)
+                      └── Naming Entropy      (weight 0.20)
+                                │
+                                ▼  suspicion score 0–1
+          │
+          ▼  (both scores written to Delta Lake: candidate_prescreening)
+    Pre-Screening Aggregator
+      weighted_score = 0.60 × resume_score + 0.40 × repo_score
+      flagged        = weighted_score ≥ PRESCREENING_THRESHOLD (default 0.50)
+          │
+          ├──► FastAPI  GET /candidates/{id}/report
+          │
+          └──► ATS Webhook (Greenhouse / Lever)
+                  payload: { candidate_uuid, prescreening_score, flags }
+                  retry:   3 retries × exponential back-off (10 s / 30 s / 90 s)
+                  DLQ:     Delta Lake webhook_dlq on permanent failure
+```
+
+**No PII in any Kafka payload or webhook.** Only `candidate_uuid` travels through the pipeline; names and emails remain in the recruiter database only.
+
+---
+
 ## Signal Modules
 
 | Module | What it measures | High suspicion indicator |

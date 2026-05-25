@@ -150,6 +150,10 @@ app.add_middleware(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
+# ── Prometheus metrics ─────────────────────────────────────────────────────────
+from api.metrics import instrument_app  # noqa: E402
+instrument_app(app)
+
 # ── Routers ────────────────────────────────────────────────────────────────────
 app.include_router(_candidates_router)
 
