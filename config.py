@@ -75,3 +75,15 @@ KAFKA_TOPIC_PROFILE: str = os.getenv("PROFILE_KAFKA_TOPIC", "candidate-profile-s
 INTERVIEW_HIGH_SUSPICION_THRESHOLD: float = float(
     os.getenv("INTERVIEW_HIGH_SUSPICION_THRESHOLD", "40.0")
 )
+
+# ── API hardening (Sprint 20+) ─────────────────────────────────────────────────
+# Requests per minute per API key before a 429 is returned. Set 0 to disable.
+RATE_LIMIT_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "100"))
+# Ad-hoc pre-screening trigger guard — disabled in production per CLAUDE.md §8.5.
+# Set ALLOW_ADHOC_TRIGGER=true in staging/QA environments only.
+ALLOW_ADHOC_TRIGGER: bool = os.getenv("ALLOW_ADHOC_TRIGGER", "false").lower() == "true"
+
+# ── ATS webhook delivery (Sprint 20+) ─────────────────────────────────────────
+# Configure one or both to enable automatic pre-screening report delivery.
+ATS_WEBHOOK_GREENHOUSE: str | None = os.getenv("ATS_WEBHOOK_GREENHOUSE") or None
+ATS_WEBHOOK_LEVER: str | None = os.getenv("ATS_WEBHOOK_LEVER") or None

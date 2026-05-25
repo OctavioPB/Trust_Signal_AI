@@ -32,7 +32,9 @@ from pydantic import BaseModel, Field
 
 import config
 from api.candidates import router as _candidates_router
+from api.rate_limiter import limiter, rate_limit_exceeded_handler
 from ml.trust_score import TrustScoreEngine, TrustScoreResult
+from slowapi.errors import RateLimitExceeded
 
 # ── Sentry error tracking (optional) ──────────────────────────────────────────
 # Activated only when SENTRY_DSN is set; no-op otherwise.
@@ -143,6 +145,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Rate limiter ───────────────────────────────────────────────────────────────
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
 # ── Routers ────────────────────────────────────────────────────────────────────
 app.include_router(_candidates_router)

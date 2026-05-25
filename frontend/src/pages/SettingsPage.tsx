@@ -441,6 +441,11 @@ function IntegrationsSection() {
   const [keyVisible,    setKeyVisible]    = useState(false);
   const [confirmRegen,  setConfirmRegen]  = useState(false);
   const [saved,         setSaved]         = useState(false);
+  const [psWebhooks, setPsWebhooks] = useState<Record<string, string>>({
+    Greenhouse: "",
+    Lever:      "",
+    Workday:    "",
+  });
 
   const MASKED_KEY = "ts_live_3f8a2d1e9c7b4f0a6e2c8d5f1a3b7e9d";
 
@@ -550,25 +555,58 @@ function IntegrationsSection() {
       {/* ATS connections */}
       <div style={{ marginBottom: 24 }}>
         <span style={FIELD_LBL}>ATS connections</span>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {ATS_INTEGRATIONS.map(a => (
             <div key={a.name} style={{
-              display: "flex", justifyContent: "space-between", alignItems: "center",
-              padding: "12px 16px",
               background: "var(--light)",
               borderRadius: 8, border: "1px solid var(--primary-10)",
+              overflow: "hidden",
             }}>
-              <span style={{ fontFamily: "var(--fb)", fontSize: 14, fontWeight: 600, color: "var(--dark)" }}>
-                {a.name}
-              </span>
-              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                {atsBadge(a.status)}
-                <button
-                  className="btn btn-ghost"
-                  style={{ padding: "6px 12px", fontSize: 10, letterSpacing: "1.5px" }}
-                >
-                  {a.status === "connected" ? "Disconnect" : "Connect"}
-                </button>
+              {/* Status row */}
+              <div style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "12px 16px",
+              }}>
+                <span style={{ fontFamily: "var(--fb)", fontSize: 14, fontWeight: 600, color: "var(--dark)" }}>
+                  {a.name}
+                </span>
+                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                  {atsBadge(a.status)}
+                  <button
+                    className="btn btn-ghost"
+                    style={{ padding: "6px 12px", fontSize: 10, letterSpacing: "1.5px" }}
+                  >
+                    {a.status === "connected" ? "Disconnect" : "Connect"}
+                  </button>
+                </div>
+              </div>
+              {/* Pre-screening webhook URL field */}
+              <div style={{
+                borderTop: "1px solid var(--primary-10)",
+                padding: "10px 16px 14px",
+                background: "var(--white)",
+              }}>
+                <span style={{
+                  ...FIELD_LBL,
+                  fontSize: 9, marginBottom: 5,
+                  color: "var(--primary-30)",
+                }}>
+                  Pre-screening webhook URL
+                </span>
+                <input
+                  style={{ ...INPUT_S, fontSize: 11 }}
+                  type="url"
+                  value={psWebhooks[a.name]}
+                  onChange={e => setPsWebhooks(prev => ({ ...prev, [a.name]: e.target.value }))}
+                  placeholder={`https://api.${a.name.toLowerCase()}.io/webhooks/trustsignal`}
+                />
+                <div style={{ fontFamily: "var(--fb)", fontSize: 10, color: "var(--mid)", marginTop: 4 }}>
+                  Receives{" "}
+                  {["candidate_uuid", "prescreening_score", "flags"].map(k => (
+                    <code key={k} style={{ fontFamily: "var(--fm)", background: "var(--primary-10)", padding: "1px 4px", borderRadius: 3, margin: "0 2px" }}>{k}</code>
+                  ))}.
+                  {" "}No PII in payload.
+                </div>
               </div>
             </div>
           ))}
