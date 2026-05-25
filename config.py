@@ -67,3 +67,11 @@ KAFKA_TOPIC_REPO: str = os.getenv("REPO_KAFKA_TOPIC", "candidate-repo-stream")
 GITHUB_API_TOKEN: str | None = os.getenv("GITHUB_API_TOKEN") or None
 GITHUB_RATE_LIMIT_PER_HOUR: int = int(os.getenv("GITHUB_RATE_LIMIT_PER_HOUR", "5000"))
 CODE_LM_MODEL: str = os.getenv("CODE_LM_MODEL", "microsoft/codebert-base")
+
+# ── Pre-screening aggregation (Sprint 18+) ─────────────────────────────────────
+KAFKA_TOPIC_PROFILE: str = os.getenv("PROFILE_KAFKA_TOPIC", "candidate-profile-stream")
+# Interview TrustScore below this value triggers severity="high" when combined with a
+# prescreening flag (CLAUDE.md §8.2 compound-alert rule).
+INTERVIEW_HIGH_SUSPICION_THRESHOLD: float = float(
+    os.getenv("INTERVIEW_HIGH_SUSPICION_THRESHOLD", "40.0")
+)
