@@ -12,7 +12,7 @@
 
 import { useState, useEffect, useRef } from "react";
 
-export type TopBarPage = "session" | "analytics" | "models" | "settings" | "info";
+export type TopBarPage = "session" | "analytics" | "models" | "settings" | "info" | "candidates";
 
 interface Props {
   page: TopBarPage;
@@ -23,10 +23,11 @@ interface Props {
 }
 
 const LINKS: { key: TopBarPage; label: string }[] = [
-  { key: "session",   label: "Sessions"  },
-  { key: "analytics", label: "Analytics" },
-  { key: "models",    label: "Models"    },
-  { key: "info",      label: "Info"      },
+  { key: "session",    label: "Sessions"    },
+  { key: "analytics",  label: "Analytics"  },
+  { key: "models",     label: "Models"     },
+  { key: "candidates", label: "Candidates" },
+  { key: "info",       label: "Info"       },
 ];
 
 // ── User chip + dropdown ──────────────────────────────────────────────────────

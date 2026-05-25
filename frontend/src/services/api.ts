@@ -5,6 +5,9 @@
  */
 
 import type {
+  CandidatesListResponse,
+  CandidateStatus,
+  PreScreeningTriggerResponse,
   ReportResponse,
   ScoreResponse,
   SessionEndResponse,
@@ -115,6 +118,63 @@ export async function deleteSession(
 ): Promise<{ session_id: string; deleted: boolean; audio_objects_removed: number }> {
   return _request(`/session/${sessionId}`, {
     method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+// ── Candidate pre-screening endpoints ────────────────────────────────────────
+
+export async function getCandidates(
+  token: string,
+  status?: CandidateStatus,
+): Promise<CandidatesListResponse> {
+  const qs = status ? `?status=${status}` : "";
+  return _request(`/candidates${qs}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export async function uploadResume(
+  token: string,
+  candidateUuid: string,
+  file: File,
+): Promise<{ candidate_uuid: string; status: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${BASE}/candidates/${candidateUuid}/resume`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      const body = (await res.json()) as { detail?: string };
+      if (body.detail) detail = body.detail;
+    } catch { /* ignore */ }
+    throw new ApiError(res.status, detail);
+  }
+  return res.json() as Promise<{ candidate_uuid: string; status: string }>;
+}
+
+export async function linkRepo(
+  token: string,
+  candidateUuid: string,
+  repoUrl: string,
+): Promise<{ candidate_uuid: string; repo_url: string; status: string }> {
+  return _request(`/candidates/${candidateUuid}/repo`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ repo_url: repoUrl }),
+  });
+}
+
+export async function triggerPreScreen(
+  token: string,
+  candidateUuid: string,
+): Promise<PreScreeningTriggerResponse> {
+  return _request(`/candidates/${candidateUuid}/prescreen`, {
+    method: "POST",
     headers: { Authorization: `Bearer ${token}` },
   });
 }

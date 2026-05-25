@@ -8,6 +8,7 @@
 
 import { useState } from "react";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
+import { CandidatesPage } from "./pages/CandidatesPage";
 import { ModelsPage } from "./pages/ModelsPage";
 import { SessionPage } from "./pages/SessionPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -33,6 +34,7 @@ export default function App() {
       {page === "session"   && <SessionPage />}
       {page === "analytics" && <AnalyticsPage />}
 
+      {page === "candidates" && <CandidatesPage />}
       {page === "models" && <ModelsPage />}
       {page === "settings" && <SettingsPage />}
       {page === "info"     && <InfoPage />}

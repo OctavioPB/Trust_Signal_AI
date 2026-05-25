@@ -59,3 +59,43 @@ export interface SignalScoresRequest {
   burstiness_score?: number;
   similarity_score?: number;
 }
+
+// ── Candidate pre-screening types ─────────────────────────────────────────────
+
+export type CandidateStatus = "pending" | "screened" | "flagged";
+
+export interface CandidateSignal {
+  signal_name: string;
+  raw_suspicion: number;
+  weight: number;
+  weighted_contribution: number;
+  explanation: string;
+}
+
+export interface Candidate {
+  candidate_uuid: string;
+  status: CandidateStatus;
+  resume_ai_score: number | null;
+  repo_ai_score: number | null;
+  prescreening_score: number | null;
+  interview_trust_score: number | null;
+  flagged: boolean;
+  severity: "low" | "medium" | "high";
+  flag_reason: string;
+  signals: CandidateSignal[];
+  repo_url: string | null;
+  scored_at: number | null;
+  created_at: number;
+}
+
+export interface CandidatesListResponse {
+  candidates: Candidate[];
+  total: number;
+}
+
+export interface PreScreeningTriggerResponse {
+  candidate_uuid: string;
+  status: string;
+  prescreening_score: number | null;
+  flagged: boolean;
+}

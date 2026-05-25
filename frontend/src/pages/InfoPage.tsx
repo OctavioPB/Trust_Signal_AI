@@ -101,6 +101,10 @@ const PAIN_POINTS = [
     heading: "Existing tools cover a different threat surface",
     body: "Plagiarism detection tools (Turnitin, Moss) compare submitted text documents. Resume verification services validate credentials. Neither category addresses real-time verbal interview assistance, which leaves a gap in the integrity coverage of remote technical hiring.",
   },
+  {
+    heading: "AI-generated resumes and repositories pass automated screening",
+    body: "Candidates now submit resumes and GitHub repositories produced almost entirely by AI — uniform vocabulary, suspiciously clean commit histories, boilerplate-heavy code. Standard ATS keyword matching and manual review cannot distinguish these at scale. By the time the live interview reveals the gap, significant recruiter time has already been invested.",
+  },
 ];
 
 const VALUE_PROPS = [
@@ -115,6 +119,10 @@ const VALUE_PROPS = [
   {
     title: "Asynchronous scoring within 60 seconds",
     body: "The scoring pipeline runs after the session ends. The recruiter receives a result within 60 seconds of call completion without interrupting the interview itself or requiring any synchronous judgment during the conversation.",
+  },
+  {
+    title: "Pre-screening before the interview even begins",
+    body: "Resume, repository, and cross-correlation signals are scored asynchronously after upload — before a recruiter invests time in a live session. A combined pre-screening score surfaces high-risk candidates early, allowing the live interview to be replaced with a proctored challenge or skipped entirely.",
   },
 ];
 
@@ -139,17 +147,24 @@ const STACK_ROWS = [
 ];
 
 const KAFKA_TOPICS = [
-  { topic: "interview-audio-stream",   retention: "24h",    key: "session_uuid",    value: "Audio chunk (binary, webm/opus, 250ms)", consumer: "Whisper ASR service"          },
-  { topic: "interview-text-stream",    retention: "7 days", key: "session_uuid",    value: "Transcript turn JSON (speaker, text, ts)", consumer: "Five signal processors"     },
-  { topic: "scoring-events",           retention: "30 days", key: "session_uuid",   value: "Final score JSON (trust_score, signals, flagged)", consumer: "API gateway, webhook dispatcher" },
+  { topic: "interview-audio-stream",    retention: "24h",     key: "session_uuid",    value: "Audio chunk (binary, webm/opus, 250ms)",                         consumer: "Whisper ASR service"                     },
+  { topic: "interview-text-stream",     retention: "7 days",  key: "session_uuid",    value: "Transcript turn JSON (speaker, text, ts)",                       consumer: "Five signal processors"                  },
+  { topic: "scoring-events",            retention: "30 days", key: "session_uuid",    value: "Final score JSON (trust_score, signals, flagged)",                consumer: "API gateway, webhook dispatcher"          },
+  { topic: "candidate-resume-stream",   retention: "90 days", key: "candidate_uuid",  value: "Resume upload event JSON (uuid, s3_key, parsed_sections_count)", consumer: "Resume Detector DAG (03:00 UTC)"         },
+  { topic: "candidate-repo-stream",     retention: "90 days", key: "candidate_uuid",  value: "Repo scan event JSON (uuid, repo_url, file_count)",              consumer: "Repo Detector DAG (04:00 UTC)"           },
+  { topic: "candidate-profile-stream",  retention: "90 days", key: "candidate_uuid",  value: "Pre-screening result JSON (uuid, score, flagged, severity)",     consumer: "Pre-screening API, Delta Lake writer"    },
 ];
 
 const ML_MODELS = [
-  { signal: "Response Latency",    type: "Statistical",  features: "pause_duration_ms, variance_coefficient, silence_ratio",  accuracy: "88.7%", fp: "1.8%" },
-  { signal: "Background Audio",    type: "CNN classifier", features: "MFCC spectrum, silence_snr, ambient_freq_peak",         accuracy: "92.3%", fp: "1.2%" },
-  { signal: "Perplexity",          type: "GPT-2 scorer", features: "token_perplexity, sentence_entropy, ngram_ratio",         accuracy: "90.1%", fp: "2.1%" },
-  { signal: "Burstiness",          type: "Statistical",  features: "sentence_len_cv, burst_ratio, long_run_ratio",            accuracy: "85.6%", fp: "2.4%" },
-  { signal: "Semantic Similarity", type: "SBERT cosine", features: "cosine_sim, top_k_coverage, answer_overlap",              accuracy: "93.4%", fp: "1.5%" },
+  { signal: "Response Latency",         type: "Statistical",           features: "pause_duration_ms, variance_coefficient, silence_ratio",                                    accuracy: "88.7%", fp: "1.8%" },
+  { signal: "Background Audio",         type: "CNN classifier",        features: "MFCC spectrum, silence_snr, ambient_freq_peak",                                             accuracy: "92.3%", fp: "1.2%" },
+  { signal: "Perplexity",               type: "GPT-2 scorer",          features: "token_perplexity, sentence_entropy, ngram_ratio",                                           accuracy: "90.1%", fp: "2.1%" },
+  { signal: "Burstiness",               type: "Statistical",           features: "sentence_len_cv, burst_ratio, long_run_ratio",                                              accuracy: "85.6%", fp: "2.4%" },
+  { signal: "Semantic Similarity",      type: "SBERT cosine",          features: "cosine_sim, top_k_coverage, answer_overlap",                                                accuracy: "93.4%", fp: "1.5%" },
+  { signal: "Resume Detector",          type: "GPT-2 + Statistical",   features: "perplexity, burstiness_cv, vocab_richness, section_uniformity",                             accuracy: "87.2%", fp: "2.0%" },
+  { signal: "Repo Detector",            type: "CodeBERT + Statistical", features: "code_perplexity, commit_velocity_burst, line_entropy, boilerplate_ratio, edit_distance",   accuracy: "84.9%", fp: "2.3%" },
+  { signal: "Pre-Screening Aggregator", type: "Weighted combiner",     features: "resume_ai_score × 0.35, repo_ai_score × 0.35, interview_trust_inv × 0.30",                  accuracy: "91.1%", fp: "1.7%" },
+  { signal: "Cross-Correlator",         type: "SBERT cosine + Δvar",   features: "skill_coherence (resume ↔ readme), style_bridge_delta (resume ↔ transcript)",               accuracy: "82.4%", fp: "2.8%" },
 ];
 
 const SECURITY_RULES = [
@@ -422,9 +437,53 @@ function PipelineDiagram() {
 
 // ── Section content views ─────────────────────────────────────────────────────
 
+const PRESCREEN_STEPS = [
+  {
+    title: "Upload the candidate's resume",
+    body: "Navigate to the Candidates page and add a candidate using their anonymous UUID. Upload a PDF or DOCX resume. The platform parses the document and scores four dimensions: perplexity (GPT-2), burstiness, vocabulary richness, and section uniformity. The result is a Resume AI Score in [0, 100].",
+  },
+  {
+    title: "Link a GitHub repository (optional)",
+    body: "If the candidate has submitted a GitHub repository URL, paste it into the repo linker field. The platform crawls file content and commit history, scoring code perplexity (CodeBERT), commit velocity bursts, and code style signals. The result is a Repo AI Score. If no repository is provided, this signal is omitted and weights are re-scaled.",
+  },
+  {
+    title: "Run pre-screen",
+    body: "Click 'Run Pre-Screen'. The Pre-Screening Aggregator combines the available signals into a weighted suspicion index. A score above 65 triggers a flag with a human-readable explanation. The Cross-Correlator also checks whether the skills claimed in the resume are coherent with the repository README.",
+  },
+];
+
 function InstructionsView() {
   return (
     <div style={BODY_WRAP}>
+
+      {/* ── 0. Pre-screening workflow ────────────────────────────── */}
+      <section style={{ marginBottom: 48 }}>
+        <div style={{ marginBottom: 24 }}>
+          <Eyebrow>Pre-screening workflow</Eyebrow>
+          <h2 style={{ ...H2_STYLE, marginTop: 12 }}>
+            Before the <em style={{ fontStyle: "italic", color: "var(--gold)" }}>interview</em> is even scheduled
+          </h2>
+          <p style={{ ...BODY_TEXT, marginTop: 8, maxWidth: 640 }}>
+            The pre-screening pipeline scores resume and repository submissions before a live session is arranged.
+            Run it as the first step in the hiring workflow — it takes under 90 seconds and surfaces high-risk candidates early.
+          </p>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+          {PRESCREEN_STEPS.map((step, i) => (
+            <div key={i} style={CARD}>
+              <div style={{ fontFamily: "var(--fd)", fontSize: 40, fontWeight: 300, color: "var(--primary-30)", lineHeight: 1, userSelect: "none" }}>
+                {String(i).padStart(2, "0")}
+              </div>
+              <div style={{ width: 28, height: 3, backgroundColor: "var(--gold)", borderRadius: 2, margin: "10px 0 14px" }} />
+              <div style={{ fontFamily: "var(--fb)", fontSize: 14, fontWeight: 700, color: "var(--dark)", marginBottom: 8 }}>
+                {step.title}
+              </div>
+              <p style={BODY_TEXT}>{step.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* ── 1. Pre-session setup ─────────────────────────────────── */}
       <section style={{ marginBottom: 48 }}>
@@ -790,7 +849,7 @@ function EngineeringView() {
             Event stream <em style={{ fontStyle: "italic", color: "var(--gold)" }}>reference</em>
           </h2>
           <p style={{ ...BODY_TEXT, marginTop: 8, maxWidth: 640 }}>
-            All three topics are append-only. Delete and update operations are blocked at the broker ACL level. The session UUID is always the partition key, ensuring all events for a given session land in the same partition.
+            All topics are append-only. Delete and update operations are blocked at the broker ACL level. The first three topics use the session UUID as partition key; the pre-screening topics use the candidate UUID.
           </p>
         </div>
 
