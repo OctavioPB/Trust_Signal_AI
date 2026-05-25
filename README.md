@@ -84,7 +84,7 @@ Recruiter uploads resume / links GitHub repo
           │
           └──► Kafka: candidate-repo-stream    (repo contents + candidate_uuid)
                          │
-                         ▼  (Airflow DAG: resume_scoring_dag)
+                         ▼  (Airflow DAG: repo_scoring_dag)
                     Repo AI Detector
                       ├── Code-LM Perplexity  (weight 0.35)
                       ├── Commit Consistency  (weight 0.25)
@@ -190,10 +190,13 @@ All tasks inherit `retries=2`, `retry_delay=timedelta(minutes=5)` from `DEFAULT_
 | Audio classification | LibROSA (MFCC) + scikit-learn RandomForest |
 | NLP scoring | HuggingFace `distilgpt2` (perplexity) |
 | API | FastAPI + JWT HS256 + Pydantic + CORSMiddleware |
-| React dashboard | React 18 + TypeScript 5.4 + Vite 5 + Zustand 4 |
+| React dashboard | React 19 + TypeScript 5.4 + Vite 5 + Zustand 4 |
 | Legacy dashboard | Streamlit + Plotly (retained for reference) |
 | Ad-hoc queries | DuckDB `parquet_scan()` over Delta tables |
 | Observability | structlog (JSON) — no PII in logs; optional Sentry integration |
+| Metrics | Prometheus (`prometheus-fastapi-instrumentator`) — custom gauges + histograms |
+| Rate limiting | slowapi — 100 req/min per API key; 429 + Retry-After on breach |
+| ATS delivery | httpx + retry/backoff + Delta Lake DLQ (Greenhouse, Lever) |
 
 ---
 
@@ -201,19 +204,33 @@ All tasks inherit `retries=2`, `retry_delay=timedelta(minutes=5)` from `DEFAULT_
 
 ```
 trustsignal/
-├── api/main.py                  FastAPI endpoints (auth, session, signals, score, report, PDF)
+├── api/
+│   ├── main.py                  FastAPI app wiring (CORS, rate limiter, Prometheus, routers)
+│   ├── auth.py                  Shared JWT bearer authentication (_ALGORITHM, _bearer, _auth)
+│   ├── candidates.py            Candidate CRUD + resume upload + repo link + trigger endpoints
+│   ├── rate_limiter.py          slowapi limiter — 100 req/min per API key, token-prefix keying
+│   ├── webhooks.py              ATS webhook delivery: retry/backoff/DLQ (Greenhouse, Lever)
+│   └── metrics.py               Prometheus gauges + histograms; instruments FastAPI on /metrics
 ├── airflow/
-│   ├── dags/retraining_dag.py  Nightly retraining DAG (5 tasks)
+│   ├── dags/
+│   │   ├── retraining_dag.py    Nightly retraining DAG — 02:00 UTC (5 tasks)
+│   │   ├── resume_scoring_dag.py  Nightly resume AI-detection scoring — 03:00 UTC
+│   │   └── repo_scoring_dag.py  Nightly repository AI-detection scoring — 04:00 UTC
 │   └── sensors/
-│       └── kafka_lag_sensor.py  Waits for Kafka consumer lag = 0
-├── frontend/                    React 18 + TypeScript 5.4 + Vite 5 dashboard
+│       └── kafka_lag_sensor.py  Waits for Kafka consumer group lag = 0
+├── frontend/                    React 19 + TypeScript 5.4 + Vite 5 dashboard
 │   ├── src/
 │   │   ├── App.tsx              Nav + switch/case page routing (no router library)
 │   │   ├── types.ts             TypeScript interfaces matching FastAPI Pydantic models
-│   │   ├── services/api.ts      Typed fetch wrapper (9 functions, ApiError class)
+│   │   ├── services/api.ts      Typed fetch wrapper (ApiError class)
+│   │   ├── pages/
+│   │   │   ├── CandidatesPage.tsx  Pre-screening UI: gauges, signal bars, upload, ATS alerts
+│   │   │   ├── SettingsPage.tsx    ATS webhook URL config per integration
+│   │   │   └── InfoPage.tsx        System info: Kafka topics, ML models, workflow steps
 │   │   ├── stores/
-│   │   │   ├── demoStore.ts     Zustand: synthetic flagged-session payload
-│   │   │   └── themeStore.ts    Zustand: light/dark toggle + localStorage persist
+│   │   │   ├── candidatesStore.ts  Zustand: candidate list, upload, repo link, pre-screen
+│   │   │   ├── demoStore.ts        Zustand: synthetic flagged-session demo payload
+│   │   │   └── themeStore.ts       Zustand: light/dark toggle + localStorage persist
 │   │   └── styles/tokens.css    CSS custom properties from BRAND.md
 │   ├── index.html               Google Fonts (Fraunces + Plus Jakarta Sans)
 │   └── vite.config.ts           /api proxy → http://localhost:8000
@@ -222,17 +239,30 @@ trustsignal/
 │   ├── api_client.py            HTTP client for FastAPI
 │   └── pdf_export.py            PDF report generation (fpdf2)
 ├── ingestion/
-│   ├── producer.py              WebRTC/WS → Kafka
-│   └── consumer.py              Kafka → STT (ThreadPoolExecutor) → interview-text-stream
+│   ├── producer.py              WebRTC/WS → Kafka (interview-audio-stream)
+│   ├── consumer.py              Kafka → STT (ThreadPoolExecutor) → interview-text-stream
+│   ├── resume_parser.py         PDF/DOCX/TXT → structured ParsedResume (sections + full_text)
+│   └── repo_producer.py         GitHub repo crawler → candidate-repo-stream events
 ├── ml/
 │   ├── features/
-│   │   ├── latency.py           Response latency CV scorer
-│   │   ├── audio_bg.py          MFCC + RandomForest keyboard detector
-│   │   ├── perplexity.py        distilgpt2 perplexity scorer
-│   │   └── burstiness.py        Sentence-length CV scorer
+│   │   ├── latency.py           Response latency CV scorer (interview)
+│   │   ├── audio_bg.py          MFCC + RandomForest keyboard detector (interview)
+│   │   ├── perplexity.py        distilgpt2 perplexity scorer (interview)
+│   │   ├── burstiness.py        Sentence-length CV scorer (interview)
+│   │   ├── resume_perplexity.py LM perplexity on resume text (pre-screening)
+│   │   ├── resume_burstiness.py Sentence-length CV on resume text (pre-screening)
+│   │   ├── vocab_richness.py    MTLD vocabulary richness scorer (pre-screening)
+│   │   ├── section_uniformity.py  Section-length variance scorer (pre-screening)
+│   │   ├── code_perplexity.py   Code-LM perplexity via CodeBERT/StarCoder (pre-screening)
+│   │   ├── code_style.py        Style consistency scorer across files (pre-screening)
+│   │   └── commit_pattern.py    Commit authorship variance analyser (pre-screening)
 │   ├── embeddings/
 │   │   └── similarity.py        Cosine similarity vs. LLM answer bank
-│   └── trust_score.py           Weighted aggregation → TrustScore
+│   ├── trust_score.py           Weighted aggregation → TrustScore (interview)
+│   ├── resume_score.py          Weighted aggregation → resume suspicion score
+│   ├── repo_score.py            Weighted aggregation → repo suspicion score
+│   ├── prescreening_score.py    Combined resume + repo → pre-screening verdict
+│   └── cross_correlation.py     Resume/repo coherence cross-signal scorer
 ├── storage/
 │   ├── delta_writer.py          PySpark + delta-spark ACID upserts
 │   ├── object_store.py          MinIO audio + artifact persistence + GDPR deletion
@@ -243,20 +273,25 @@ trustsignal/
 │   └── llm_answer_bank.jsonl    59+ canonical AI interview answer Q&A pairs
 ├── docs/
 │   └── DPA_TEMPLATE.md          GDPR Data Processing Agreement template
-├── research/notebooks/
-│   ├── audio_bg_eda.ipynb       MFCC feature EDA + classifier training
-│   └── nlp_signals_eda.ipynb    Perplexity + burstiness + similarity EDA
+├── research/
+│   ├── notebooks/
+│   │   ├── audio_bg_eda.ipynb      MFCC feature EDA + classifier training
+│   │   ├── nlp_signals_eda.ipynb   Perplexity + burstiness + similarity EDA
+│   │   └── bias_audit.ipynb        FP-rate audit across demographic + style subgroups
+│   └── model_cards/
+│       ├── resume_detector.md      Model card: type, features, FP rates, bias audit, limits
+│       └── repo_detector.md        Model card: type, features, FP rates, bias audit, limits
 ├── scripts/
 │   ├── smoke_test.sh            Service health checks
 │   ├── pii_audit.py             Scans source + logs for PII variable names
 │   └── query_delta.py           DuckDB CLI for Delta Lake ad-hoc queries
 ├── tests/
 │   ├── unit/                    Isolated tests; no I/O; models mocked
-│   └── integration/             Full-stack tests (load, lifecycle, GDPR)
+│   └── integration/             Full-stack tests (load, lifecycle, GDPR, webhooks)
 ├── config.py                    Centralised env-var loading (python-dotenv)
+├── logging_setup.py             structlog JSON config + bind_log_context / clear_log_context
 ├── docker-compose.yml           Kafka, MinIO, Airflow, Spark local stack
 └── planning/
-
 ```
 
 ---
@@ -369,6 +404,8 @@ airflow dags trigger trustsignal_nightly_retraining
 
 ## API Reference
 
+### Interview session
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/health` | Liveness probe |
@@ -381,12 +418,33 @@ airflow dags trigger trustsignal_nightly_retraining
 | `POST` | `/session/{id}/end` | Close session and lock final score |
 | `DELETE` | `/session/{id}` | GDPR erasure (Article 17) |
 
-All session endpoints require `Authorization: Bearer <token>`.
+### Pre-screening (candidates)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/candidates` | Create a new candidate profile |
+| `GET` | `/candidates` | Paginated list; filter by `status` (`pending`/`screened`/`flagged`) |
+| `GET` | `/candidates/{id}` | Full candidate detail with signal breakdown |
+| `POST` | `/candidates/{id}/resume` | Upload resume (PDF / DOCX / TXT); publishes to Kafka |
+| `POST` | `/candidates/{id}/repos` | Link a public GitHub repository URL |
+| `GET` | `/candidates/{id}/report` | Pre-screening report (422 if not yet scored) |
+| `POST` | `/candidates/{id}/trigger` | On-demand scoring trigger (requires `ALLOW_ADHOC_TRIGGER=true`) |
+
+### Observability
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/metrics` | Prometheus metrics (HTTP latencies, pre-screening gauges + histograms) |
+
+All endpoints except `/health` and `/metrics` require `Authorization: Bearer <token>`.
+Rate limit: 100 requests / minute per API key (429 + `Retry-After` on breach).
 Interactive docs: `http://localhost:8000/docs`
 
 ---
 
 ## Environment Variables
+
+**Interview pipeline**
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -401,13 +459,32 @@ Interactive docs: `http://localhost:8000/docs`
 | `MAX_CONCURRENT_STT` | `2` | Max parallel Whisper calls per consumer process |
 | `OPENAI_API_KEY` | _(empty)_ | Optional cloud Whisper fallback |
 | `VECTOR_STORE_PATH` | `data/vector_store` | Embedding store path |
+| `SUSPICION_THRESHOLD` | `0.65` | Interview flag threshold (suspicion_index ≥ this) |
+
+**Pre-screening pipeline**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RESUME_KAFKA_TOPIC` | `candidate-resume-stream` | Resume events topic |
+| `REPO_KAFKA_TOPIC` | `candidate-repo-stream` | Repository events topic |
+| `PROFILE_KAFKA_TOPIC` | `candidate-profile-stream` | Pre-screening trigger topic |
+| `RESUME_MAX_MB` | `10` | Maximum resume upload size in MB |
+| `GITHUB_API_TOKEN` | _(empty)_ | GitHub PAT for crawling candidate repos |
+| `CODE_LM_MODEL` | `microsoft/codebert-base` | HuggingFace model for code perplexity |
+| `PRESCREENING_THRESHOLD` | `0.50` | Suspicion score threshold to flag a candidate |
+| `ATS_WEBHOOK_GREENHOUSE` | _(empty)_ | Greenhouse webhook URL for pre-screening results |
+| `ATS_WEBHOOK_LEVER` | _(empty)_ | Lever webhook URL for pre-screening results |
+
+**API & observability**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
 | `FASTAPI_SECRET_KEY` | `dev-secret-replace-in-production` | JWT signing key (`openssl rand -hex 32` for prod) |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated CORS origins |
-| `SUSPICION_THRESHOLD` | `0.65` | Flag threshold (suspicion_index ≥ this) |
-| `FALSE_POSITIVE_TARGET` | `0.02` | Target FP rate (2 %) |
-| `SLACK_WEBHOOK_URL` | _(empty)_ | Slack Incoming Webhook for DAG notify |
+| `RATE_LIMIT_PER_MINUTE` | `100` | Max API requests per minute per key |
+| `ALLOW_ADHOC_TRIGGER` | `false` | Set `true` in staging to enable on-demand scoring trigger |
+| `SLACK_WEBHOOK_URL` | _(empty)_ | Slack Incoming Webhook for DAG notifications |
 | `SENTRY_DSN` | _(empty)_ | Sentry DSN for FastAPI error reporting |
-| `AIRFLOW_HOME` | `/opt/airflow` | Airflow home directory |
 
 ---
 
@@ -419,7 +496,7 @@ Interactive docs: `http://localhost:8000/docs`
 4. **False positive guard** — Any flagged candidate receives a mandatory human-readable explanation (`flag_reason`). Silent suppression is prohibited.
 5. **Lazy infrastructure imports** — `minio` and `fpdf2` are imported at call-site, not module level; the API and dashboard start without those packages installed.
 6. **DAG-gated model updates** — Hard rule: classifier retraining only runs via `trustsignal_nightly_retraining`; no ad-hoc triggers in production.
-7. **React over Streamlit** — The primary dashboard is a React 18 + TypeScript 5.4 SPA (Sprint 11–13); Streamlit is retained under `dashboard/legacy/` for reference only and receives no new feature work.
+7. **React over Streamlit** — The primary dashboard is a React 19 + TypeScript 5.4 SPA (Sprint 11–13); Streamlit is retained under `dashboard/legacy/` for reference only and receives no new feature work.
 
 ---
 
