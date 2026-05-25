@@ -30,40 +30,13 @@ from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
 from pydantic import BaseModel, Field
 
 import config
+from api.auth import _auth, _bearer
 from api.rate_limiter import RATE_LIMIT, limiter
 
 logger = structlog.get_logger(__name__)
-
-# ── Auth ───────────────────────────────────────────────────────────────────────
-# Extracted to api/auth.py in Sprint 20.
-
-_ALGORITHM = "HS256"
-_bearer = HTTPBearer()
-
-
-def _auth(
-    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
-) -> str:
-    """Validate JWT bearer token; return recruiter_id (``sub`` claim)."""
-    try:
-        payload = jwt.decode(
-            credentials.credentials,
-            config.FASTAPI_SECRET_KEY,
-            algorithms=[_ALGORITHM],
-        )
-        return str(payload["sub"])
-    except (JWTError, KeyError):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired authentication token.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
 
 # ── File validation ────────────────────────────────────────────────────────────
 

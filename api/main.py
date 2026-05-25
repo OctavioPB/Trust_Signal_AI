@@ -26,11 +26,11 @@ from typing import Annotated
 import structlog
 from fastapi import Depends, FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
+from jose import jwt
 from pydantic import BaseModel, Field
 
 import config
+from api.auth import _ALGORITHM, _auth, _bearer
 from api.candidates import router as _candidates_router
 from api.rate_limiter import limiter, rate_limit_exceeded_handler
 from ml.trust_score import TrustScoreEngine, TrustScoreResult
@@ -58,7 +58,6 @@ logger = structlog.get_logger(__name__)
 
 # ── JWT configuration ──────────────────────────────────────────────────────────
 
-_ALGORITHM = "HS256"
 _TOKEN_EXPIRE_HOURS = 24
 
 
@@ -156,28 +155,6 @@ instrument_app(app)
 
 # ── Routers ────────────────────────────────────────────────────────────────────
 app.include_router(_candidates_router)
-
-_bearer = HTTPBearer()
-
-
-def _auth(
-    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
-) -> str:
-    """Validate JWT bearer token and return the recruiter_id (``sub`` claim).
-
-    Raises:
-        HTTPException 401: On missing, expired, or malformed token.
-    """
-    try:
-        payload = _decode_token(credentials.credentials)
-        return str(payload["sub"])
-    except (JWTError, KeyError):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired authentication token.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
 
 # ── Pydantic schemas ───────────────────────────────────────────────────────────
 

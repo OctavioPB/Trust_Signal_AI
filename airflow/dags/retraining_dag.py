@@ -39,7 +39,6 @@ Hard rules from CLAUDE.md:
 from __future__ import annotations
 
 import json
-import os
 from datetime import datetime, timezone
 from itertools import groupby
 from pathlib import Path

@@ -363,7 +363,7 @@ pytest tests/integration/ -v   # requires Docker stack
 airflow dags trigger trustsignal_nightly_retraining
 ```
 
-> **CLAUDE.md §8**: ML model updates must run via the DAG — never ad-hoc in production.
+
 
 ---
 
@@ -416,9 +416,9 @@ Interactive docs: `http://localhost:8000/docs`
 1. **Append-only Kafka topics** — Interview data is never modified in the stream; corrections go to Delta Lake only.
 2. **90-day MinIO lifecycle** — Audio is deleted automatically after 90 days (GDPR Article 17). Implemented in `storage/lifecycle.py`.
 3. **UUID-only logging** — No PII (`candidate_name`, `email`) ever appears in logs or Kafka payloads. All identifiers are UUIDs.
-4. **False positive guard** — Any flagged candidate receives a mandatory human-readable explanation (`flag_reason`). Silent suppression is prohibited (CLAUDE.md §8).
+4. **False positive guard** — Any flagged candidate receives a mandatory human-readable explanation (`flag_reason`). Silent suppression is prohibited.
 5. **Lazy infrastructure imports** — `minio` and `fpdf2` are imported at call-site, not module level; the API and dashboard start without those packages installed.
-6. **DAG-gated model updates** — The `CLAUDE.md` hard rule: classifier retraining only runs via `trustsignal_nightly_retraining`; no ad-hoc triggers in production.
+6. **DAG-gated model updates** — Hard rule: classifier retraining only runs via `trustsignal_nightly_retraining`; no ad-hoc triggers in production.
 7. **React over Streamlit** — The primary dashboard is a React 18 + TypeScript 5.4 SPA (Sprint 11–13); Streamlit is retained under `dashboard/legacy/` for reference only and receives no new feature work.
 
 ---

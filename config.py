@@ -36,7 +36,6 @@ OPENAI_API_KEY: str | None = os.getenv("OPENAI_API_KEY") or None
 # ── ML ────────────────────────────────────────────────────────────────────────
 VECTOR_STORE_PATH: str = os.getenv("VECTOR_STORE_PATH", "data/vector_store")
 SUSPICION_THRESHOLD: float = float(os.getenv("SUSPICION_THRESHOLD", "0.65"))
-FALSE_POSITIVE_TARGET: float = float(os.getenv("FALSE_POSITIVE_TARGET", "0.02"))
 
 # ── FastAPI ───────────────────────────────────────────────────────────────────
 FASTAPI_SECRET_KEY: str = os.getenv("FASTAPI_SECRET_KEY", "dev-secret-replace-in-production")
@@ -46,9 +45,6 @@ CORS_ALLOWED_ORIGINS: list[str] = [
     for o in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173").split(",")
     if o.strip()
 ]
-
-# ── Airflow ───────────────────────────────────────────────────────────────────
-AIRFLOW_HOME: str = os.getenv("AIRFLOW_HOME", "/opt/airflow")
 
 # ── Notifications ─────────────────────────────────────────────────────────────
 SLACK_WEBHOOK_URL: str = os.getenv("SLACK_WEBHOOK_URL", "")
@@ -63,9 +59,7 @@ KAFKA_TOPIC_RESUME: str = os.getenv("RESUME_KAFKA_TOPIC", "candidate-resume-stre
 RESUME_MAX_MB: int = int(os.getenv("RESUME_MAX_MB", "10"))
 
 # ── GitHub repository crawling (Sprint 16+) ────────────────────────────────────
-KAFKA_TOPIC_REPO: str = os.getenv("REPO_KAFKA_TOPIC", "candidate-repo-stream")
 GITHUB_API_TOKEN: str | None = os.getenv("GITHUB_API_TOKEN") or None
-GITHUB_RATE_LIMIT_PER_HOUR: int = int(os.getenv("GITHUB_RATE_LIMIT_PER_HOUR", "5000"))
 CODE_LM_MODEL: str = os.getenv("CODE_LM_MODEL", "microsoft/codebert-base")
 
 # ── Pre-screening aggregation (Sprint 18+) ─────────────────────────────────────
