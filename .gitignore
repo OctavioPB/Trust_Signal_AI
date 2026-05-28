@@ -46,3 +46,7 @@ Thumbs.db
 .idea/
 *.swp
 planning/
+
+# ── Local demo script (personal — not for CI) ────────────────────────────────
+demo.ps1
+.demo_pids

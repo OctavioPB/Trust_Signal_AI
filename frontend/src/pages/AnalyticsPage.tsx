@@ -334,9 +334,12 @@ function FlaggedTable() {
 
 export function AnalyticsPage() {
   const flaggedPct = ((FLAGGED_N / TOTAL) * 100).toFixed(1);
+  const reportDate = new Date().toLocaleDateString("en-US", {
+    year: "numeric", month: "long", day: "numeric",
+  });
 
   return (
-    <div style={{
+    <div className="analytics-page" style={{
       flex: 1,
       padding: "40px 56px 80px",
       boxSizing: "border-box",
@@ -344,6 +347,17 @@ export function AnalyticsPage() {
       maxWidth: 1440,
       margin: "0 auto",
     }}>
+
+      {/* ── Print-only executive header (hidden on screen) ──────────────── */}
+      <div className="print-only print-report-header">
+        <div className="print-brand">TrustSignal <em>AI</em></div>
+        <div className="print-title">Executive Analytics Report</div>
+        <div className="print-meta">
+          <span>Generated: {reportDate}</span>
+          <span>Confidential · Do Not Distribute</span>
+        </div>
+        <hr className="print-rule" />
+      </div>
 
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="section-head" style={{ marginBottom: 32 }}>
@@ -355,7 +369,12 @@ export function AnalyticsPage() {
             signal frequency, and score evolution across the last 8 weeks.
           </p>
         </div>
-        <span className="badge info"><span className="dot" />Synthetic data</span>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 12 }}>
+          <span className="badge info"><span className="dot" />Synthetic data</span>
+          <button className="btn btn-ghost no-print" onClick={() => window.print()}>
+            ↓&nbsp;Export PDF
+          </button>
+        </div>
       </div>
 
       {/* ── KPI row — accent bars always gold (never overridden) ─────────── */}
@@ -406,7 +425,7 @@ export function AnalyticsPage() {
       </div>
 
       {/* ── Distribution + Risk tier ─────────────────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 20, marginBottom: 20 }}>
+      <div className="distribution-row" style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 20, marginBottom: 20 }}>
         <div className="card">
           <div style={CARD_LABEL}>TrustScore Distribution</div>
           <DistributionChart />
@@ -436,7 +455,7 @@ export function AnalyticsPage() {
       </div>
 
       {/* ── Signal triggers + Flagged table ─────────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+      <div className="signal-flagged-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
         <div className="card">
           <div style={CARD_LABEL}>Signal Trigger Frequency</div>
           <SignalTriggers />

@@ -1184,6 +1184,96 @@ button { font-family: inherit; }
   font-weight: 300;
 }
 
+/* ─── Print / PDF export ─────────────────────────────────── */
+.print-only { display: none; }
+
+@media print {
+  /* ── Hide screen-only chrome ── */
+  .topbar,
+  .accent-bar,
+  .foot,
+  .no-print { display: none !important; }
+
+  /* ── Page setup ── */
+  @page {
+    size: A4;
+    margin: 16mm 14mm;
+  }
+
+  body {
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ── Remove interaction shadows ── */
+  .kpi, .card {
+    box-shadow: none !important;
+    border: 1px solid #d1dbe8 !important;
+  }
+  .kpi:hover { box-shadow: none !important; }
+
+  /* ── Remove inner padding on page root ── */
+  .analytics-page {
+    padding: 0 !important;
+  }
+
+  /* ── Show print header ── */
+  .print-only { display: block !important; }
+
+  .print-report-header { margin-bottom: 24px; }
+  .print-brand {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 20px;
+    font-weight: 300;
+    color: #003366;
+    letter-spacing: 0.4px;
+  }
+  .print-brand em {
+    font-style: italic;
+    color: #c8a84b;
+  }
+  .print-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #003366;
+    margin-top: 4px;
+  }
+  .print-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    color: #6b7280;
+    margin-top: 6px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .print-rule {
+    border: none;
+    border-top: 2px solid #003366;
+    margin: 10px 0 20px;
+  }
+
+  /* ── Flatten inline-style grids for print ── */
+  .distribution-row,
+  .signal-flagged-row {
+    display: block !important;
+  }
+  .distribution-row > * + *,
+  .signal-flagged-row > * + * {
+    margin-top: 14px;
+  }
+
+  /* ── Page break management ── */
+  .kpi-grid { page-break-inside: avoid; }
+  .card { page-break-inside: avoid; }
+  .distribution-row { page-break-inside: avoid; }
+}
+
 /* ─── Responsive (narrow) ────────────────────────────────── */
 @media (max-width: 1180px) {
   .signals-grid { grid-template-columns: 1fr; }
