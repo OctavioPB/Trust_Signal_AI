@@ -72,6 +72,23 @@
 
   /* Semantic alias used by dashboard.css */
   --border:     var(--primary-10);
+  --bg:         var(--light);
+
+  /* Role tokens. --primary stays navy in both themes because it is a SURFACE colour
+     (top bar, hero, buttons). Text that should read as "brand navy" uses
+     --primary-ink, which lightens in dark mode; text sitting on a navy surface uses
+     --on-primary, which is white in both themes. */
+  --primary-ink: var(--primary);
+  --on-primary:  #FFFFFF;
+  --rojo-ink:    #9B1C2B;
+
+  /* Categorical series (navy ramp, UI_Decisions §5). Use through style={{}} in SVG:
+     custom properties do not resolve inside SVG presentation attributes. */
+  --series-1: #003366;
+  --series-2: #1A4D80;
+  --series-3: #336699;
+  --series-4: #4D7099;
+  --series-5: #99BBDD;
 
   /* ── TYPOGRAPHY ───────────────────────────────────────────── */
   --fd: 'Fraunces', Georgia, 'Times New Roman', serif;
@@ -151,6 +168,21 @@
   --mid:       #9CA3AF;
   --primary-10:#1A2A3E;
   --primary-30:#2A4A6A;
+  --primary-60:#5B8FC7;
+  --primary-ink: #8FB8E8;
+  --rojo-ink:    #F2A7AE;
+  /* *-dark semantic tones are only used as TEXT on *-ice pills: lighten them so
+     they read on the dark ice backgrounds. */
+  --verde-dark:   #7DD9B0;
+  --naranja-dark: #F7AF80;
+  --rojo-dark:    #EF8B94;
+  --morado-dark:  #C3A6EA;
+  --rosa-dark:    #F29BBC;
+  --series-1: #BFD6F2;
+  --series-2: #8FB8E8;
+  --series-3: #5B8FC7;
+  --series-4: #3F76B0;
+  --series-5: #2A5A8C;
   --rojo-ice:    #3D1520;
   --verde-ice:   #0D2E20;
   --naranja-ice: #2E1A0A;

@@ -234,11 +234,11 @@ button { font-family: inherit; }
   cursor: pointer;
   transition: var(--transition);
 }
-.rail .chip:hover { color: var(--primary); border-color: var(--primary-30); }
+.rail .chip:hover { color: var(--primary-ink); border-color: var(--primary-30); }
 .rail .chip.active {
   background: var(--primary);
-  color: var(--white);
-  border-color: var(--primary);
+  color: var(--on-primary);
+  border-color: var(--primary-ink);
 }
 .rail .chip .count {
   font-size: 9px;
@@ -329,7 +329,7 @@ button { font-family: inherit; }
   font-family: var(--fd);
   font-size: 22px;
   font-weight: 300;
-  color: var(--primary);
+  color: var(--primary-ink);
   line-height: 1.15;
   letter-spacing: -0.2px;
   margin-top: 10px;
@@ -455,7 +455,7 @@ button { font-family: inherit; }
 }
 .btn-primary {
   background: var(--primary);
-  color: var(--white);
+  color: var(--on-primary);
 }
 .btn-primary:hover { background: var(--primary-80); }
 .btn-gold {
@@ -465,7 +465,7 @@ button { font-family: inherit; }
 .btn-gold:hover { background: var(--gold-light); }
 .btn-ghost {
   background: transparent;
-  color: var(--primary);
+  color: var(--primary-ink);
   border: 1px solid var(--primary-30);
 }
 .btn-ghost:hover { background: var(--primary-10); border-color: var(--primary-60); }
@@ -486,7 +486,7 @@ button { font-family: inherit; }
   border-radius: 16px;
   position: relative;
   overflow: hidden;
-  color: var(--white);
+  color: var(--on-primary);
   padding: 36px 40px 32px;
   margin-bottom: 32px;
 }
@@ -630,7 +630,7 @@ button { font-family: inherit; }
   font-family: var(--fd);
   font-size: 26px;
   font-weight: 300;
-  color: var(--primary);
+  color: var(--primary-ink);
   line-height: 1.15;
 }
 .section-head h2 em {
@@ -763,6 +763,7 @@ button { font-family: inherit; }
 .badge.warning .dot { background: var(--naranja); }
 .badge.info    { background: var(--primary-10); color: var(--primary-80); }
 .badge.info .dot { background: var(--primary-60); }
+[data-theme="dark"] .badge.info { color: var(--primary-ink); }
 .badge.live { background: rgba(39,185,124,0.12); color: var(--verde-dark); }
 .badge.live .dot {
   background: var(--verde);
@@ -936,7 +937,7 @@ button { font-family: inherit; }
   font-family: var(--fd);
   font-size: 22px;
   font-weight: 300;
-  color: var(--primary);
+  color: var(--primary-ink);
 }
 .alert .alert-head h3 em {
   font-style: italic;
@@ -948,7 +949,7 @@ button { font-family: inherit; }
   line-height: 1.75;
   white-space: pre-line;
 }
-.alert .reason b { color: var(--primary); font-weight: 600; }
+.alert .reason b { color: var(--primary-ink); font-weight: 600; }
 .alert .factors {
   display: flex;
   flex-direction: column;
@@ -976,7 +977,7 @@ button { font-family: inherit; }
 }
 .alert .factor .text b {
   font-weight: 600;
-  color: var(--primary);
+  color: var(--primary-ink);
   display: block;
   margin-bottom: 2px;
   font-size: 12px;
@@ -1144,7 +1145,7 @@ button { font-family: inherit; }
   font-family: var(--fd);
   font-size: 38px;
   font-weight: 300;
-  color: var(--primary);
+  color: var(--primary-ink);
   line-height: 1.15;
   margin-bottom: 4px;
 }
@@ -1290,3 +1291,25 @@ button { font-family: inherit; }
     border-bottom: 1px solid var(--border);
   }
 }
+
+/* ── Human review footer (AlertPanel) ───────────────────────── */
+.alert .review {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.alert .review-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.alert .review-title {
+  font-size: 11px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--primary-ink);
+}
+.alert .review-hint, .alert .review-note { font-size: 12px; color: var(--mid); margin: 0; }
+.alert .review-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.alert .review-actions .btn[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--gold); }
+.alert .review-error { font-size: 12px; color: var(--rojo); margin: 0; }

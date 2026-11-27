@@ -16,7 +16,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import pytest
 from fastapi.testclient import TestClient
 
-from api.main import app, _SESSIONS
+from api.main import _SESSIONS, app
 
 _CONCURRENT = 20
 _P95_TARGET_S = 12.0

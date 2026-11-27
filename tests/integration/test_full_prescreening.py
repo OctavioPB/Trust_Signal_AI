@@ -10,7 +10,6 @@ Run with:
 
 from __future__ import annotations
 
-import base64
 import json
 import uuid
 from unittest.mock import MagicMock, patch
@@ -301,7 +300,7 @@ def test_profile_producer_payload_has_no_pii():
     assert "email" not in payload
 
     # Scores must be numeric
-    assert isinstance(payload["prescreening_score"], (int, float))
+    assert isinstance(payload["prescreening_score"], int | float)
     assert isinstance(payload["flagged"], bool)
     assert payload["severity"] in ("low", "medium", "high")
 
@@ -310,8 +309,9 @@ def test_profile_producer_payload_has_no_pii():
 
 def test_prescreening_store_append_calls_spark():
     """PreScreeningStore.append_record invokes Spark write with correct data."""
-    from storage.prescreening_store import PreScreeningRecord, PreScreeningStore
     import time
+
+    from storage.prescreening_store import PreScreeningRecord, PreScreeningStore
 
     mock_spark = MagicMock()
     mock_df    = MagicMock()
@@ -341,8 +341,9 @@ def test_prescreening_store_append_calls_spark():
 
 def test_prescreening_store_path_uses_table_name():
     """The Delta Lake path includes the correct table name."""
-    from storage.prescreening_store import PreScreeningRecord, PreScreeningStore, TABLE_PRESCREENING
     import time
+
+    from storage.prescreening_store import TABLE_PRESCREENING, PreScreeningRecord, PreScreeningStore
 
     mock_spark = MagicMock()
     mock_df    = MagicMock()

@@ -5,21 +5,18 @@ from __future__ import annotations
 import pytest
 
 from ml.features.code_style import (
-    CodeFileStyleResult,
-    CodeStyleFeatures,
-    CodeStyleScorer,
-    _BOILERPLATE_MAX_SUSPICION,
-    _BOILERPLATE_MIN_SUSPICION,
     _COMMENT_MAX_SUSPICION,
     _COMMENT_MIN_SUSPICION,
     _NAMING_MAX_SUSPICION,
     _NAMING_MIN_SUSPICION,
+    CodeFileStyleResult,
+    CodeStyleFeatures,
+    CodeStyleScorer,
     _boilerplate_ratio,
     _comment_density,
     _levenshtein,
     _normalise,
 )
-
 
 # ── _levenshtein ───────────────────────────────────────────────────────────────
 
@@ -120,20 +117,32 @@ def test_boilerplate_ratio_copyright():
 # ── _normalise ────────────────────────────────────────────────────────────────
 
 def test_normalise_forward_at_max():
-    assert _normalise(_COMMENT_MAX_SUSPICION, _COMMENT_MAX_SUSPICION, _COMMENT_MIN_SUSPICION, inverse=False) == pytest.approx(1.0)
+    result = _normalise(
+        _COMMENT_MAX_SUSPICION, _COMMENT_MAX_SUSPICION, _COMMENT_MIN_SUSPICION, inverse=False
+    )
+    assert result == pytest.approx(1.0)
 
 
 def test_normalise_forward_at_min():
-    assert _normalise(_COMMENT_MIN_SUSPICION, _COMMENT_MAX_SUSPICION, _COMMENT_MIN_SUSPICION, inverse=False) == pytest.approx(0.0)
+    result = _normalise(
+        _COMMENT_MIN_SUSPICION, _COMMENT_MAX_SUSPICION, _COMMENT_MIN_SUSPICION, inverse=False
+    )
+    assert result == pytest.approx(0.0)
 
 
 def test_normalise_inverse_at_max_suspicion_bound():
     """Inverse: value ≤ max_susp → score 1.0."""
-    assert _normalise(_NAMING_MAX_SUSPICION, _NAMING_MAX_SUSPICION, _NAMING_MIN_SUSPICION, inverse=True) == pytest.approx(1.0)
+    result = _normalise(
+        _NAMING_MAX_SUSPICION, _NAMING_MAX_SUSPICION, _NAMING_MIN_SUSPICION, inverse=True
+    )
+    assert result == pytest.approx(1.0)
 
 
 def test_normalise_inverse_at_min_suspicion_bound():
-    assert _normalise(_NAMING_MIN_SUSPICION, _NAMING_MAX_SUSPICION, _NAMING_MIN_SUSPICION, inverse=True) == pytest.approx(0.0)
+    result = _normalise(
+        _NAMING_MIN_SUSPICION, _NAMING_MAX_SUSPICION, _NAMING_MIN_SUSPICION, inverse=True
+    )
+    assert result == pytest.approx(0.0)
 
 
 def test_normalise_degenerate_bounds_returns_zero():
@@ -141,11 +150,13 @@ def test_normalise_degenerate_bounds_returns_zero():
 
 
 def test_normalise_clamped_above():
-    assert _normalise(1.0, _COMMENT_MAX_SUSPICION, _COMMENT_MIN_SUSPICION, inverse=False) == pytest.approx(1.0)
+    result = _normalise(1.0, _COMMENT_MAX_SUSPICION, _COMMENT_MIN_SUSPICION, inverse=False)
+    assert result == pytest.approx(1.0)
 
 
 def test_normalise_clamped_below():
-    assert _normalise(0.0, _COMMENT_MAX_SUSPICION, _COMMENT_MIN_SUSPICION, inverse=False) == pytest.approx(0.0)
+    result = _normalise(0.0, _COMMENT_MAX_SUSPICION, _COMMENT_MIN_SUSPICION, inverse=False)
+    assert result == pytest.approx(0.0)
 
 
 # ── CodeStyleScorer.score_file ─────────────────────────────────────────────────

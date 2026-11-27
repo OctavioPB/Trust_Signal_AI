@@ -2,28 +2,26 @@
 
 from __future__ import annotations
 
-import math
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
 from ingestion.github_crawler import CommitSummary
 from ml.features.commit_pattern import (
-    CommitPatternFeatures,
-    CommitPatternScorer,
     _LINE_ENTROPY_HIGH_SUSPICION,
     _LINE_ENTROPY_LOW_SUSPICION,
     _W_COMMIT,
     _W_LINE,
+    CommitPatternFeatures,
+    CommitPatternScorer,
     _line_length_entropy,
     _normalise_line_entropy,
 )
 
-
 # ── Fixtures ───────────────────────────────────────────────────────────────────
 
 def _make_commits(count: int, msg_len: int = 12) -> list[CommitSummary]:
-    base = datetime(2025, 1, 1, tzinfo=timezone.utc).timestamp()
+    base = datetime(2025, 1, 1, tzinfo=UTC).timestamp()
     return [
         CommitSummary(sha=f"s{i}", committed_at=base + i * 86400, message_length=msg_len)
         for i in range(count)
@@ -33,8 +31,8 @@ def _make_commits(count: int, msg_len: int = 12) -> list[CommitSummary]:
 def _make_burst_commits(total: int, burst_frac: float = 0.90) -> list[CommitSummary]:
     burst_n = int(total * burst_frac)
     rest_n  = total - burst_n
-    burst_base = datetime(2025, 6, 2, tzinfo=timezone.utc).timestamp()
-    rest_base  = datetime(2025, 1, 1, tzinfo=timezone.utc).timestamp()
+    burst_base = datetime(2025, 6, 2, tzinfo=UTC).timestamp()
+    rest_base  = datetime(2025, 1, 1, tzinfo=UTC).timestamp()
     burst = [
         CommitSummary(sha=f"b{i}", committed_at=burst_base + i * 3600, message_length=10)
         for i in range(burst_n)

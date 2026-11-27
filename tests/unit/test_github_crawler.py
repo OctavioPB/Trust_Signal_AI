@@ -5,23 +5,19 @@ from __future__ import annotations
 import hashlib
 import time
 import uuid
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from ingestion.github_crawler import (
-    CrawledFile,
-    CommitSummary,
+    _MAX_FILE_BYTES,
+    _MAX_FILES_PER_REPO,
+    _RATE_LIMIT_SAFETY_BUFFER,
     GitHubCrawler,
-    RepoCrawlResult,
     _ext_to_language,
     _is_eligible_file,
     _parse_owner_repo,
-    _MAX_FILES_PER_REPO,
-    _MAX_FILE_BYTES,
-    _RATE_LIMIT_SAFETY_BUFFER,
 )
-
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 

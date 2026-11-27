@@ -70,14 +70,15 @@ function SignalRow({ sig, idx }: { sig: SignalDetail; idx: number }) {
   );
 }
 
-// Per-signal series colours for the donut — navy gradient per UI_Decisions §5.
-// SVG fill/stroke must use raw hex (CSS custom properties do not apply in SVG attributes).
+// Per-signal series colours for the donut — navy ramp per UI_Decisions §5 (tokens.css
+// --series-*; lightened in dark mode). Applied via style={{}}: custom properties do not
+// resolve inside SVG presentation attributes.
 const DONUT_PALETTE = [
-  "#003366",  // primary navy
-  "#1a4d80",  // navy 80%
-  "#336699",  // navy 60%
-  "#4d7099",  // navy muted
-  "#99bbdd",  // navy 30%
+  "var(--series-1)",
+  "var(--series-2)",
+  "var(--series-3)",
+  "var(--series-4)",
+  "var(--series-5)",
 ];
 
 function ContributionDonut({
@@ -94,13 +95,17 @@ function ContributionDonut({
   const cy = 78;
   const circ = 2 * Math.PI * r;
 
-  let cumFrac = 0;
+  const fracs = signals.map((s) => (total > 0 ? s.weighted_contribution / total : 0));
   const arcs = signals.map((s, i) => {
-    const frac = total > 0 ? s.weighted_contribution / total : 0;
-    const dash = frac * circ;
-    const offset = cumFrac * circ;
-    cumFrac += frac;
-    return { color: DONUT_PALETTE[i % DONUT_PALETTE.length], dash, offset, sig: s, frac };
+    const frac = fracs[i];
+    const cumFrac = fracs.slice(0, i).reduce((acc, f) => acc + f, 0);
+    return {
+      color: DONUT_PALETTE[i % DONUT_PALETTE.length],
+      dash: frac * circ,
+      offset: cumFrac * circ,
+      sig: s,
+      frac,
+    };
   });
 
   return (
@@ -108,31 +113,30 @@ function ContributionDonut({
       <div className="donut-wrap">
         <div className="donut-title">Contribution Mix</div>
         <svg viewBox="0 0 156 156" width={156} height={156} aria-label="Signal contribution donut">
-          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#e0eaf4" strokeWidth={18} />
+          <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth={18} style={{ stroke: "var(--primary-10)" }} />
           {arcs.map((a, i) => (
             <circle
               key={i}
               cx={cx} cy={cy} r={r}
               fill="none"
-              stroke={a.color}
               strokeWidth={18}
               strokeDasharray={`${a.dash} ${circ - a.dash}`}
               strokeDashoffset={-a.offset}
               transform={`rotate(-90 ${cx} ${cy})`}
-              style={{ transition: "stroke-dasharray 0.5s ease" }}
+              style={{ stroke: a.color, transition: "stroke-dasharray 0.5s ease" }}
             />
           ))}
           <text
             x={cx} y={cy - 4} textAnchor="middle"
             fontFamily="Fraunces, Georgia, serif"
-            fontSize={28} fontWeight={300} fill="#003366"
+            fontSize={28} fontWeight={300} style={{ fill: "var(--primary-ink)" }}
           >
             {(suspicionIndex * 100).toFixed(1)}
           </text>
           <text
             x={cx} y={cy + 14} textAnchor="middle"
             fontFamily="var(--fb)" fontSize={9}
-            letterSpacing={2.5} fontWeight={600} fill="#6b7280"
+            letterSpacing={2.5} fontWeight={600} style={{ fill: "var(--mid)" }}
           >
             SUSPICION
           </text>

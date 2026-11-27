@@ -17,7 +17,6 @@ import pytest
 from storage.lifecycle import DEFAULT_RETENTION_DAYS, apply_raw_audio_lifecycle
 from storage.object_store import BUCKET_RAW_AUDIO, ObjectStore
 
-
 # ── apply_raw_audio_lifecycle ──────────────────────────────────────────────────
 
 class TestApplyRawAudioLifecycle:

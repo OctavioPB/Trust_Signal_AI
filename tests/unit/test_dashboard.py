@@ -2,7 +2,7 @@
 
 Covers:
   - dashboard.api_client: HTTP client helpers (requests mocked)
-  - dashboard.app: pure helper functions (_trust_color, _trust_label, demo data)
+  - dashboard.legacy.app: pure helper functions (_trust_color, _trust_label, demo data)
   - dashboard.pdf_export: PDF generation from a synthetic report dict
 
 No Streamlit server required — all Streamlit-using functions are excluded;
@@ -16,20 +16,19 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from dashboard.api_client import APIError, get_report, get_score, get_token, health_check
-from dashboard.app import (
+from dashboard.legacy.app import (
+    _FLAG_THRESHOLD_SCORE,
+    _GREEN,
+    _ORANGE,
+    _RED,
     _demo_report_data,
     _demo_score_data,
     _signal_tier_bg,
     _signal_tier_color,
     _trust_color,
     _trust_label,
-    _FLAG_THRESHOLD_SCORE,
-    _GREEN,
-    _ORANGE,
-    _RED,
 )
 from dashboard.pdf_export import generate_report_pdf
-
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -88,24 +87,27 @@ def _make_report(*, flagged: bool = False, with_end_ts: bool = True) -> dict:
 
 # ── api_client: health_check ──────────────────────────────────────────────────
 
+_REQ_GET = "dashboard.api_client.requests.get"
+
+
 class TestHealthCheck:
 
     def test_returns_true_when_api_ok(self) -> None:
-        with patch("dashboard.api_client.requests.get", return_value=_ok_response({"status": "ok"})):
+        with patch(_REQ_GET, return_value=_ok_response({"status": "ok"})):
             assert health_check("http://localhost:8000") is True
 
     def test_returns_false_when_api_down(self) -> None:
-        with patch("dashboard.api_client.requests.get", side_effect=ConnectionError("refused")):
+        with patch(_REQ_GET, side_effect=ConnectionError("refused")):
             assert health_check("http://localhost:8000") is False
 
     def test_returns_false_on_non_200(self) -> None:
         m = MagicMock()
         m.ok = False
-        with patch("dashboard.api_client.requests.get", return_value=m):
+        with patch(_REQ_GET, return_value=m):
             assert health_check("http://localhost:8000") is False
 
     def test_returns_false_on_timeout(self) -> None:
-        with patch("dashboard.api_client.requests.get", side_effect=TimeoutError()):
+        with patch(_REQ_GET, side_effect=TimeoutError()):
             assert health_check("http://localhost:8000") is False
 
 
@@ -171,31 +173,31 @@ class TestGetScore:
         }
 
     def test_returns_score_dict(self) -> None:
-        with patch("dashboard.api_client.requests.get", return_value=_ok_response(self._score_payload())):
+        with patch(_REQ_GET, return_value=_ok_response(self._score_payload())):
             result = get_score("http://api", "tok", "s1")
         assert result["trust_score"] == 80.0
 
     def test_sends_bearer_auth_header(self) -> None:
-        with patch("dashboard.api_client.requests.get", return_value=_ok_response(self._score_payload())) as mock_get:
+        with patch(_REQ_GET, return_value=_ok_response(self._score_payload())) as mock_get:
             get_score("http://api", "my-jwt-token", "s1")
         headers = mock_get.call_args[1]["headers"]
         assert headers["Authorization"] == "Bearer my-jwt-token"
 
     def test_requests_correct_url(self) -> None:
-        with patch("dashboard.api_client.requests.get", return_value=_ok_response(self._score_payload())) as mock_get:
+        with patch(_REQ_GET, return_value=_ok_response(self._score_payload())) as mock_get:
             get_score("http://api", "tok", "session-uuid-001")
         url = mock_get.call_args[0][0]
         assert "session-uuid-001" in url
         assert url.endswith("/score")
 
     def test_raises_api_error_on_404(self) -> None:
-        with patch("dashboard.api_client.requests.get", return_value=_err_response(404, "Session not found.")):
+        with patch(_REQ_GET, return_value=_err_response(404, "Session not found.")):
             with pytest.raises(APIError) as exc:
                 get_score("http://api", "tok", "nonexistent")
         assert exc.value.status_code == 404
 
     def test_raises_api_error_on_401(self) -> None:
-        with patch("dashboard.api_client.requests.get", return_value=_err_response(401, "Unauthorized")):
+        with patch(_REQ_GET, return_value=_err_response(401, "Unauthorized")):
             with pytest.raises(APIError):
                 get_score("http://api", "bad-token", "s1")
 
@@ -206,20 +208,20 @@ class TestGetReport:
 
     def test_returns_report_dict(self) -> None:
         payload = {"session_id": "s1", "turns": [], "trust_score": 70.0}
-        with patch("dashboard.api_client.requests.get", return_value=_ok_response(payload)):
+        with patch(_REQ_GET, return_value=_ok_response(payload)):
             result = get_report("http://api", "tok", "s1")
         assert result["session_id"] == "s1"
         assert isinstance(result["turns"], list)
 
     def test_requests_correct_report_url(self) -> None:
         payload = {"session_id": "s2", "turns": []}
-        with patch("dashboard.api_client.requests.get", return_value=_ok_response(payload)) as mock_get:
+        with patch(_REQ_GET, return_value=_ok_response(payload)) as mock_get:
             get_report("http://api", "tok", "session-42")
         url = mock_get.call_args[0][0]
         assert url.endswith("/report")
 
     def test_raises_api_error_on_404(self) -> None:
-        with patch("dashboard.api_client.requests.get", return_value=_err_response(404, "Not found.")):
+        with patch(_REQ_GET, return_value=_err_response(404, "Not found.")):
             with pytest.raises(APIError):
                 get_report("http://api", "tok", "missing-session")
 

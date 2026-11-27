@@ -118,11 +118,16 @@ def _scan_log_file(path: Path) -> list[tuple[int, str, str]]:
 
 # ── Directory walker ──────────────────────────────────────────────────────────
 
-def _audit(root: Path, log_dir: Path | None) -> dict[str, list[tuple[int, str, str]]]:
+def _audit(
+    root: Path, log_dir: Path | None, skip_dirs: set[str] | None = None
+) -> dict[str, list[tuple[int, str, str]]]:
     report: dict[str, list[tuple[int, str, str]]] = {}
 
     for path in root.rglob("*.py"):
-        if any(part in _SKIP_DIRS for part in path.parts):
+        rel_parts = path.relative_to(root).parts
+        if any(part in _SKIP_DIRS for part in path.parts) or (
+            skip_dirs and rel_parts and rel_parts[0] in skip_dirs
+        ):
             continue
         if path.name in _SKIP_FILES:
             continue
@@ -143,16 +148,24 @@ def _audit(root: Path, log_dir: Path | None) -> dict[str, list[tuple[int, str, s
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--path", default=".", help="Root directory to scan (default: .)")
     parser.add_argument("--log-dir", default=None, help="Directory containing JSON log files")
+    parser.add_argument(
+        "--skip-dir",
+        action="append",
+        default=[],
+        help="Top-level directory to skip (repeatable), e.g. --skip-dir tests",
+    )
     args = parser.parse_args()
 
     root = Path(args.path).resolve()
     log_dir = Path(args.log_dir).resolve() if args.log_dir else None
 
     print(f"TrustSignal PII audit — scanning {root}")
-    report = _audit(root, log_dir)
+    report = _audit(root, log_dir, set(args.skip_dir))
 
     if not report:
         print("✓ No PII findings.")

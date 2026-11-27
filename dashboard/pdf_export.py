@@ -15,10 +15,25 @@ Layout:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fpdf import FPDF
+
+# The built-in core fonts (Helvetica) only cover Latin-1; map common typographic
+# characters so report text never crashes PDF generation.
+_LATIN1_MAP = str.maketrans({
+    "—": "-", "–": "-", "‘": "'", "’": "'",
+    "“": '"', "”": '"', "…": "...", "•": "*", "→": "->",
+})
+
+
+class _ReportPDF(FPDF):
+    """FPDF that coerces text to Latin-1 before rendering with core fonts."""
+
+    def normalize_text(self, text: str) -> str:
+        text = text.translate(_LATIN1_MAP).encode("latin-1", "replace").decode("latin-1")
+        return super().normalize_text(text)
 
 # ── Color constants (from BRAND.md) ───────────────────────────────────────────
 
@@ -55,7 +70,7 @@ def _score_bg(trust_score: float) -> tuple[int, int, int]:
 def _fmt_ts(ts: float | None) -> str:
     if ts is None:
         return "—"
-    return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    return datetime.fromtimestamp(ts, tz=UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
 def generate_report_pdf(report: dict[str, Any]) -> bytes:
@@ -70,7 +85,7 @@ def generate_report_pdf(report: dict[str, Any]) -> bytes:
     Returns:
         PDF file contents as bytes.
     """
-    pdf = FPDF(orientation="P", unit="mm", format="A4")
+    pdf = _ReportPDF(orientation="P", unit="mm", format="A4")
     pdf.set_auto_page_break(auto=True, margin=18)
     pdf.add_page()
 
@@ -199,7 +214,7 @@ def generate_report_pdf(report: dict[str, Any]) -> bytes:
     pdf.set_font("Helvetica", "B", 8)
     col_w = [62, 28, 26, 36, 38]
     headers = ["Signal", "Raw Score", "Weight", "Contribution", "Tier"]
-    for w, h in zip(col_w, headers):
+    for w, h in zip(col_w, headers, strict=False):
         pdf.cell(w, 7, h, border=1, fill=True, align="C")
     pdf.ln()
 
@@ -217,7 +232,9 @@ def generate_report_pdf(report: dict[str, Any]) -> bytes:
         pdf.cell(col_w[0], 6.5, sig["signal_name"], border=1, fill=True)
         pdf.cell(col_w[1], 6.5, f"{raw:.4f}", border=1, fill=True, align="C")
         pdf.cell(col_w[2], 6.5, f"{sig['weight']:.2f}", border=1, fill=True, align="C")
-        pdf.cell(col_w[3], 6.5, f"{sig['weighted_contribution']:.4f}", border=1, fill=True, align="C")
+        pdf.cell(
+            col_w[3], 6.5, f"{sig['weighted_contribution']:.4f}", border=1, fill=True, align="C"
+        )
         # Tier cell — coloured text
         x, y = pdf.get_x(), pdf.get_y()
         pdf.cell(col_w[4], 6.5, "", border=1, fill=True)
@@ -245,7 +262,8 @@ def generate_report_pdf(report: dict[str, Any]) -> bytes:
 
         pdf.set_font("Helvetica", "B", 9)
         pdf.set_text_color(*sc)
-        pdf.cell(0, 5.5, f"{sig['signal_name']}  (score: {raw:.2f}  |  weight: {sig['weight']:.2f})", ln=True)
+        label = f"{sig['signal_name']}  (score: {raw:.2f}  |  weight: {sig['weight']:.2f})"
+        pdf.cell(0, 5.5, label, ln=True)
 
         pdf.set_font("Helvetica", "", 8.5)
         pdf.set_text_color(*_C_DARK)
@@ -259,7 +277,7 @@ def generate_report_pdf(report: dict[str, Any]) -> bytes:
 
     pdf.set_font("Helvetica", "", 7.5)
     pdf.set_text_color(255, 255, 255)
-    now = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    now = datetime.now(tz=UTC).strftime("%Y-%m-%d %H:%M UTC")
     pdf.cell(
         0, 8,
         f"TrustSignal AI  ·  OPB · Octavio Pérez Bravo  ·  Generated {now}  ·  CONFIDENTIAL",

@@ -16,15 +16,15 @@ import { Eyebrow } from "../components/Eyebrow";
 // ── Design helpers ─────────────────────────────────────────────────────────────
 
 const STATUS_COLOR: Record<string, string> = {
-  pending:  "var(--primary)",
+  pending:  "var(--primary-ink)",
   screened: "var(--verde)",
   flagged:  "var(--rojo)",
 };
 
 const STATUS_BG: Record<string, string> = {
   pending:  "var(--primary-10)",
-  screened: "#e6f9f1",
-  flagged:  "#fdeced",
+  screened: "var(--verde-ice)",
+  flagged:  "var(--rojo-ice)",
 };
 
 function scoreColor(score: number): string {
@@ -200,7 +200,7 @@ function UploadZone({ onFile }: { onFile: (f: File) => void }) {
       <input ref={inputRef} type="file" accept=".pdf,.doc,.docx" style={{ display: "none" }}
         onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }} />
       <div style={{ fontFamily: "var(--fb)", fontSize: 12, color: "var(--mid)" }}>
-        Drop PDF / DOCX here, or <span style={{ color: "var(--primary)", fontWeight: 600 }}>browse</span>
+        Drop PDF / DOCX here, or <span style={{ color: "var(--primary-ink)", fontWeight: 600 }}>browse</span>
       </div>
       <div style={{ fontFamily: "var(--fb)", fontSize: 10, color: "var(--primary-30)", marginTop: 4 }}>
         PDF, DOC, DOCX · max 10 MB
@@ -236,7 +236,7 @@ function AddCandidateModal({ onClose, onAdd }: { onClose: () => void; onAdd: (uu
           border: "1px solid var(--primary-10)",
         }}
       >
-        <div style={{ fontFamily: "var(--fd)", fontSize: 20, fontWeight: 300, color: "var(--primary)", marginBottom: 6 }}>
+        <div style={{ fontFamily: "var(--fd)", fontSize: 20, fontWeight: 300, color: "var(--primary-ink)", marginBottom: 6 }}>
           Add <em style={{ fontStyle: "italic", color: "var(--gold)" }}>Candidate</em>
         </div>
         <p style={{ fontFamily: "var(--fb)", fontSize: 12, color: "var(--mid)", marginBottom: 20, lineHeight: 1.6 }}>
@@ -357,13 +357,13 @@ function DetailPanel({ candidate }: { candidate: Candidate | null }) {
       {/* Alert callout */}
       {candidate.flagged && (
         <div style={{
-          background: "#fdeced", border: "1.5px solid var(--rojo)",
+          background: "var(--rojo-ice)", border: "1.5px solid var(--rojo)",
           borderRadius: 10, padding: "12px 16px", marginBottom: 14,
         }}>
           <div style={{ fontFamily: "var(--fb)", fontSize: 11, fontWeight: 700, color: "var(--rojo)", marginBottom: 4 }}>
             AI-Assist Flag — {candidate.severity.toUpperCase()} severity
           </div>
-          <p style={{ fontFamily: "var(--fb)", fontSize: 11, color: "#9b1c2b", margin: 0, lineHeight: 1.6 }}>
+          <p style={{ fontFamily: "var(--fb)", fontSize: 11, color: "var(--rojo-ink)", margin: 0, lineHeight: 1.6 }}>
             {candidate.flag_reason}
           </p>
         </div>
@@ -413,7 +413,7 @@ function DetailPanel({ candidate }: { candidate: Candidate | null }) {
             display: "flex", alignItems: "center", gap: 8,
             background: "var(--primary-10)", borderRadius: 8, padding: "9px 12px",
           }}>
-            <span style={{ fontFamily: "var(--fm)", fontSize: 11, color: "var(--primary)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <span style={{ fontFamily: "var(--fm)", fontSize: 11, color: "var(--primary-ink)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {candidate.repo_url}
             </span>
             <button
@@ -460,7 +460,7 @@ function DetailPanel({ candidate }: { candidate: Candidate | null }) {
             ...BTN,
             width: "100%",
             background: loadingScreen ? "var(--primary-30)" : "var(--gold)",
-            color: loadingScreen ? "#fff" : "var(--primary)",
+            color: loadingScreen ? "#fff" : "var(--primary-ink)",
             fontSize: 13, padding: "12px 24px",
             opacity: loadingScreen ? 0.7 : 1,
           }}
@@ -517,7 +517,7 @@ export function CandidatesPage() {
         <Eyebrow>Pre-Screening</Eyebrow>
         <h1 style={{
           fontFamily: "var(--fd)", fontWeight: 300, fontSize: 36,
-          color: "var(--primary)", margin: "10px 0 6px", lineHeight: 1.1,
+          color: "var(--primary-ink)", margin: "10px 0 6px", lineHeight: 1.1,
         }}>
           Candidate{" "}
           <em style={{ fontStyle: "italic", color: "var(--gold)" }}>Pre-Screening</em>
@@ -539,7 +539,7 @@ export function CandidatesPage() {
             { label: "Avg Score", value: avgScore !== null ? Math.round(avgScore).toString() : "—", accent: avgScore !== null ? scoreColor(avgScore) : undefined },
           ].map(({ label, value, accent }) => (
             <div key={label} style={KPI_CARD}>
-              <div style={{ fontFamily: "var(--fd)", fontSize: 28, fontWeight: 600, color: accent ?? "var(--primary)", lineHeight: 1 }}>
+              <div style={{ fontFamily: "var(--fd)", fontSize: 28, fontWeight: 600, color: accent ?? "var(--primary-ink)", lineHeight: 1 }}>
                 {value}
               </div>
               <div style={{ fontFamily: "var(--fb)", fontSize: 10, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--mid)", marginTop: 4 }}>
@@ -555,10 +555,10 @@ export function CandidatesPage() {
             {TABS.map(({ key, label }) => (
               <button key={key} onClick={() => setTab(key)} style={{
                 fontFamily: "var(--fb)", fontSize: 12, fontWeight: activeTab === key ? 600 : 400,
-                color: activeTab === key ? "var(--primary)" : "var(--mid)",
+                color: activeTab === key ? "var(--primary-ink)" : "var(--mid)",
                 background: "none", border: "none", cursor: "pointer",
                 padding: "8px 14px",
-                borderBottom: activeTab === key ? "2px solid var(--primary)" : "2px solid transparent",
+                borderBottom: activeTab === key ? "2px solid var(--primary-ink)" : "2px solid transparent",
                 marginBottom: -2, transition: "all 0.15s ease",
               }}>
                 {label}

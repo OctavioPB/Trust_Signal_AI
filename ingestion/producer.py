@@ -13,7 +13,6 @@ from __future__ import annotations
 import asyncio
 import time
 import uuid
-from typing import AsyncIterator
 
 import structlog
 import websockets
@@ -222,7 +221,7 @@ async def _handle_connection(
 
 
 async def start_websocket_server(
-    host: str = "0.0.0.0",
+    host: str = "0.0.0.0",  # noqa: S104 - container entrypoint; Docker maps the port
     port: int = 8765,
     bootstrap_servers: str | None = None,
     topic: str | None = None,

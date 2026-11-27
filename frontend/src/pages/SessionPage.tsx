@@ -17,7 +17,7 @@
  *   </main>
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { AlertPanel } from "../components/AlertPanel";
 import { Eyebrow } from "../components/Eyebrow";
@@ -28,9 +28,9 @@ import { TranscriptView } from "../components/TranscriptView";
 import { TrustScoreGauge } from "../components/TrustScoreGauge";
 
 import { usePolling } from "../hooks/usePolling";
-import { ApiError, getReport, getReportPdf, getToken } from "../services/api";
+import { ApiError, getReport, getReportPdf, getToken, submitReview } from "../services/api";
 import { useDemoStore } from "../stores/demoStore";
-import type { ReportResponse } from "../types";
+import type { ReportResponse, ReviewVerdict } from "../types";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -187,6 +187,9 @@ export function SessionPage() {
   const [loading, setLoading]         = useState(false);
   const [error, setError]             = useState<string | null>(null);
   const [polling, setPolling]         = useState(false);
+  const [reviewBusy, setReviewBusy]   = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const [demoVerdict, setDemoVerdict] = useState<ReviewVerdict | null>(null);
 
   const { isDemo, scenario, setDemo } = useDemoStore();
 
@@ -197,8 +200,11 @@ export function SessionPage() {
     token,
   );
 
-  useEffect(() => {
-    if (!pollData) return;
+  // Merge each new poll result into the report. Adjusting state during render
+  // (keyed on the previous value) instead of in an effect avoids an extra render pass.
+  const [mergedPoll, setMergedPoll] = useState<typeof pollData>(null);
+  if (pollData && pollData !== mergedPoll) {
+    setMergedPoll(pollData);
     setReport((prev) =>
       prev
         ? {
@@ -212,12 +218,10 @@ export function SessionPage() {
           }
         : prev,
     );
-    if (pollData.status !== "live") setPolling(false);
-  }, [pollData]);
+  }
 
-  useEffect(() => {
-    if (!isPolling && polling) setPolling(false);
-  }, [isPolling, polling]);
+  // The hook stops once the session leaves "live" (or polling can't run): reflect that in the toggle.
+  if (polling && !isDemo && !isPolling) setPolling(false);
 
   const displayData: ReportResponse | null = isDemo ? scenario : report;
 
@@ -240,7 +244,28 @@ export function SessionPage() {
   function handleLoadDemo() {
     setError(null);
     setPolling(false);
+    setDemoVerdict(null);
+    setReviewError(null);
     setDemo(true);
+  }
+
+  // Human verdict on the flag. In demo mode it stays local (nothing is saved).
+  async function handleReview(verdict: ReviewVerdict) {
+    setReviewError(null);
+    if (isDemo) {
+      setDemoVerdict(verdict);
+      return;
+    }
+    if (!token || !sessionId) return;
+    setReviewBusy(true);
+    try {
+      const r = await submitReview(token, sessionId, verdict);
+      setReport((prev) => (prev ? { ...prev, review_verdict: r.verdict } : prev));
+    } catch (e) {
+      setReviewError(e instanceof ApiError ? e.message : String(e));
+    } finally {
+      setReviewBusy(false);
+    }
   }
 
   async function handleDownloadPdf() {
@@ -363,6 +388,11 @@ export function SessionPage() {
                   flagged={displayData.flagged}
                   flagReason={displayData.flag_reason}
                   signals={displayData.signals}
+                  reviewVerdict={isDemo ? demoVerdict : displayData.review_verdict ?? null}
+                  onReview={displayData.status === "live" ? undefined : handleReview}
+                  reviewBusy={reviewBusy}
+                  reviewError={reviewError}
+                  reviewNote={isDemo ? "Demo mode: the verdict is shown here but not saved." : undefined}
                 />
               ) : (
                 <ClearedCallout data={displayData} />

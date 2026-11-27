@@ -367,7 +367,7 @@ function RetentionSection() {
             style={{ flex: 1, accentColor: "var(--primary)" }}
           />
           <code style={{
-            fontFamily: "var(--fm)", fontSize: 14, color: "var(--primary)",
+            fontFamily: "var(--fm)", fontSize: 14, color: "var(--primary-ink)",
             background: "var(--primary-10)",
             padding: "4px 12px", borderRadius: 6,
             minWidth: 52, textAlign: "center", display: "block",
@@ -392,7 +392,7 @@ function RetentionSection() {
             style={{ flex: 1, accentColor: "var(--primary)" }}
           />
           <code style={{
-            fontFamily: "var(--fm)", fontSize: 14, color: "var(--primary)",
+            fontFamily: "var(--fm)", fontSize: 14, color: "var(--primary-ink)",
             background: "var(--primary-10)",
             padding: "4px 12px", borderRadius: 6,
             minWidth: 52, textAlign: "center", display: "block",
@@ -475,7 +475,7 @@ function IntegrationsSection() {
             maxWidth: 400, width: "90%",
             boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
           }}>
-            <div style={{ fontFamily: "var(--fd)", fontSize: 22, fontWeight: 300, color: "var(--primary)", marginBottom: 12 }}>
+            <div style={{ fontFamily: "var(--fd)", fontSize: 22, fontWeight: 300, color: "var(--primary-ink)", marginBottom: 12 }}>
               Regenerate API <em style={{ fontStyle: "italic", color: "var(--rojo)" }}>key?</em>
             </div>
             <p style={{ fontFamily: "var(--fb)", fontSize: 13, color: "var(--mid)", lineHeight: 1.7, marginBottom: 24 }}>
@@ -699,7 +699,7 @@ function AccountSection() {
             <div style={{
               width: 36, height: 36, borderRadius: "50%",
               background: "linear-gradient(135deg, var(--gold), var(--gold-light))",
-              color: "var(--primary)",
+              color: "var(--primary-ink)",
               display: "flex", alignItems: "center", justifyContent: "center",
               fontFamily: "var(--fd)", fontWeight: 600, fontSize: 13,
               flexShrink: 0,
@@ -792,7 +792,7 @@ export function SettingsPage() {
             <div className="kpi-lbl">Sessions today</div>
             <span className="badge info"><span className="dot" />Active</span>
           </div>
-          <div className="kpi-val" style={{ color: "var(--primary)" }}>12</div>
+          <div className="kpi-val" style={{ color: "var(--primary-ink)" }}>12</div>
           <div className="kpi-sub">of 247 this month</div>
         </div>
 
@@ -812,7 +812,7 @@ export function SettingsPage() {
             <div className="kpi-lbl">API calls today</div>
             <span className="badge success"><span className="dot" />Within limit</span>
           </div>
-          <div className="kpi-val" style={{ color: "var(--primary)" }}>1,203</div>
+          <div className="kpi-val" style={{ color: "var(--primary-ink)" }}>1,203</div>
           <div className="kpi-sub">10k / day rate limit</div>
         </div>
 
@@ -852,7 +852,7 @@ export function SettingsPage() {
               >
                 <div style={{
                   fontFamily: "var(--fb)", fontSize: 13, fontWeight: 600,
-                  color: active === s.id ? "var(--primary)" : "var(--dark)",
+                  color: active === s.id ? "var(--primary-ink)" : "var(--dark)",
                   marginBottom: 2,
                 }}>
                   {s.label}

@@ -9,15 +9,14 @@ import pytest
 import torch
 
 from ml.features.code_perplexity import (
+    _MIN_TOKENS,
+    _PPL_MAX_SUSPICION,
+    _PPL_MIN_SUSPICION,
     CodeFilePerplexityResult,
     CodePerplexityScorer,
     CodeRepoPerplexityFeatures,
-    _PPL_MAX_SUSPICION,
-    _PPL_MIN_SUSPICION,
-    _MIN_TOKENS,
     _normalise_perplexity,
 )
-
 
 # ── Stub model helpers ─────────────────────────────────────────────────────────
 
@@ -186,8 +185,6 @@ def test_score_repo_weighted_mean():
     content_a = "short"     # 5 chars
     content_b = "long" * 5  # 20 chars (heavier weight)
 
-    call_count = 0
-
     def make_tok(n):
         tok = MagicMock()
         tok.return_value = {"input_ids": torch.ones((1, n), dtype=torch.long)}
@@ -199,10 +196,6 @@ def test_score_repo_weighted_mean():
         m = MagicMock()
         m.return_value = out
         return m
-
-    # Call sequence: file_a first, file_b second
-    tok_a, mod_a = make_tok(20), make_mod(loss_a)
-    tok_b, mod_b = make_tok(20), make_mod(loss_b)
 
     # Build a scorer that switches behaviour after the first score_file call
     calls = [0]

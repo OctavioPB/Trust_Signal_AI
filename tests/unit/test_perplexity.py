@@ -14,13 +14,11 @@ import pytest
 import torch
 
 from ml.features.perplexity import (
-    DEFAULT_MODEL,
-    PerplexityFeatures,
-    PerplexityScorer,
     _PPL_MAX_SUSPICION,
     _PPL_MIN_SUSPICION,
+    PerplexityFeatures,
+    PerplexityScorer,
 )
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -156,8 +154,8 @@ class TestScore:
 
     def test_injected_model_skips_download(self) -> None:
         """Constructor with _tokenizer and _model must not load from HuggingFace."""
-        with patch("ml.features.perplexity.GPT2TokenizerFast") as mock_tok:
-            with patch("ml.features.perplexity.GPT2LMHeadModel") as mock_mdl:
+        with patch("transformers.GPT2TokenizerFast") as mock_tok:
+            with patch("transformers.GPT2LMHeadModel") as mock_mdl:
                 _ = _make_scorer()
                 mock_tok.from_pretrained.assert_not_called()
                 mock_mdl.from_pretrained.assert_not_called()

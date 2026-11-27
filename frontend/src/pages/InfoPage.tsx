@@ -196,7 +196,7 @@ const H2_STYLE: CSSProperties = {
   fontFamily: "var(--fd)",
   fontSize: 24,
   fontWeight: 300,
-  color: "var(--primary)",
+  color: "var(--primary-ink)",
   marginBottom: 6,
   marginTop: 0,
   lineHeight: 1.2,
@@ -772,7 +772,7 @@ function EngineeringView() {
             <tbody>
               {STACK_ROWS.map((r, i) => (
                 <tr key={r.layer} style={{ background: i % 2 === 0 ? "var(--white)" : "var(--light)" }}>
-                  <td style={{ ...TD, fontFamily: "var(--fb)", fontWeight: 700, color: "var(--primary)", whiteSpace: "nowrap" }}>
+                  <td style={{ ...TD, fontFamily: "var(--fb)", fontWeight: 700, color: "var(--primary-ink)", whiteSpace: "nowrap" }}>
                     {r.layer}
                   </td>
                   <td style={{ ...TD, fontFamily: "var(--fm)", fontSize: 11, color: "var(--primary-60)" }}>
@@ -829,7 +829,7 @@ function EngineeringView() {
                 <div style={{ fontFamily: "var(--fb)", fontSize: 9, letterSpacing: "2px", textTransform: "uppercase", fontWeight: 600, color: "var(--mid)", marginBottom: 4 }}>
                   {label}
                 </div>
-                <div style={{ fontFamily: "var(--fd)", fontSize: 22, fontWeight: 300, color: "var(--primary)", lineHeight: 1, marginBottom: 4 }}>
+                <div style={{ fontFamily: "var(--fd)", fontSize: 22, fontWeight: 300, color: "var(--primary-ink)", lineHeight: 1, marginBottom: 4 }}>
                   {value}
                 </div>
                 <div style={{ fontFamily: "var(--fb)", fontSize: 11, color: "var(--mid)" }}>

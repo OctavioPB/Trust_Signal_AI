@@ -12,9 +12,7 @@ arrays to keep tests fast and deterministic.
 
 from __future__ import annotations
 
-import io
 import pickle
-import struct
 import tempfile
 from pathlib import Path
 
@@ -28,10 +26,9 @@ from ml.features.audio_bg import (
     N_MFCC,
     BackgroundAudioClassifier,
     BackgroundAudioFeatures,
-    extract_mfcc_features,
     _pcm_to_float32,
+    extract_mfcc_features,
 )
-
 
 # ── Synthetic data helpers ────────────────────────────────────────────────────
 
@@ -178,15 +175,7 @@ def test_classifier_precision_meets_target() -> None:
     clf = BackgroundAudioClassifier()
     clf.train_from_arrays(X_train, y_train)
 
-    # Use PCM bytes path via classify() to exercise the full inference pipeline
-    proba_list = []
-    for i in range(len(X_test)):
-        # Re-derive PCM from the test feature's original class to keep things consistent;
-        # we directly call the internal scaler+clf to avoid needing audio bytes for every test row.
-        pass
-
     # Directly measure on the feature-level test split (exercises clf + scaler)
-    from sklearn.preprocessing import StandardScaler
     scaler = clf._scaler
     X_test_scaled = scaler.transform(X_test)
     y_pred = clf._clf.predict(X_test_scaled)

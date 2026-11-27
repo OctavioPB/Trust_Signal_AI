@@ -2,21 +2,18 @@
 
 from __future__ import annotations
 
-import math
-
 import numpy as np
 import pytest
 
 from ml.cross_correlation import (
-    CrossCorrelationFeatures,
-    CrossCorrelationScorer,
     _W_COHERENCE,
     _W_STYLE,
+    CrossCorrelationFeatures,
+    CrossCorrelationScorer,
     _cosine_similarity,
     _sentence_length_variance,
     _variance_delta,
 )
-
 
 # ── Stub model helper ──────────────────────────────────────────────────────────
 
@@ -190,7 +187,9 @@ def test_score_style_bridge_uniform_texts_low_delta():
     v = _unit()
     model = _mock_model({"a": v, "b": v})
     scorer = CrossCorrelationScorer(_model=model)
-    result = scorer.score("uuid-uniform-style", "Python", "readme", uniform_resume, uniform_interview)
+    result = scorer.score(
+        "uuid-uniform-style", "Python", "readme", uniform_resume, uniform_interview
+    )
     # Both have similar variance → small delta
     assert result.style_bridge_delta < 0.5
 
@@ -234,5 +233,8 @@ def test_score_combined_weight_formula():
     # No transcript → bridge = 0.0
     result = scorer.score("uuid-formula", "skills", "readme", None, None)
 
-    expected = _W_COHERENCE * (1.0 - result.skill_coherence_score) + _W_STYLE * result.style_bridge_delta
+    expected = (
+        _W_COHERENCE * (1.0 - result.skill_coherence_score)
+        + _W_STYLE * result.style_bridge_delta
+    )
     assert result.coherence_suspicion_score == pytest.approx(min(1.0, expected), abs=1e-4)

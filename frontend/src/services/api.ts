@@ -14,6 +14,8 @@ import type {
   SessionStartResponse,
   SignalScoresRequest,
   TokenResponse,
+  ReviewResponse,
+  ReviewVerdict,
 } from "../types";
 
 const BASE = "/api";
@@ -109,6 +111,18 @@ export async function endSession(
   return _request(`/session/${sessionId}/end`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export async function submitReview(
+  token: string,
+  sessionId: string,
+  verdict: ReviewVerdict,
+): Promise<ReviewResponse> {
+  return _request(`/session/${sessionId}/review`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ verdict }),
   });
 }
 

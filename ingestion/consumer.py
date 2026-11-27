@@ -18,7 +18,7 @@ from __future__ import annotations
 import asyncio
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import structlog
 from confluent_kafka import Consumer, KafkaError, KafkaException
@@ -84,7 +84,9 @@ class AudioConsumer:
 
         # Thread pool for STT: keeps the Kafka poll loop responsive while
         # Whisper inference runs in background threads. Semaphore caps CPU usage.
-        _concurrency = max_concurrent_stt if max_concurrent_stt is not None else config.MAX_CONCURRENT_STT
+        _concurrency = (
+            max_concurrent_stt if max_concurrent_stt is not None else config.MAX_CONCURRENT_STT
+        )
         self._stt_semaphore = threading.BoundedSemaphore(_concurrency)
         self._stt_executor = ThreadPoolExecutor(
             max_workers=_concurrency,
@@ -165,7 +167,7 @@ class AudioConsumer:
         session_id: str = headers.get("session_id", "unknown")
         chunk_seq: int = int(headers.get("chunk_seq", "0"))
         audio_bytes: bytes = msg.value()  # type: ignore[union-attr]
-        date_str: str = datetime.now(timezone.utc).strftime("%Y%m%d")
+        date_str: str = datetime.now(UTC).strftime("%Y%m%d")
 
         self._chunk_counts[session_id] = self._chunk_counts.get(session_id, 0) + 1
 
@@ -324,8 +326,8 @@ class AudioConsumer:
 if __name__ == "__main__":
     configure_structlog()
 
-    from transcription.whisper_service import WhisperService
     from ingestion.text_publisher import TextPublisher
+    from transcription.whisper_service import WhisperService
 
     whisper_svc = WhisperService(
         model_size=config.WHISPER_MODEL_SIZE,

@@ -140,7 +140,11 @@ class PreScreeningStore:
             float(record.prescreening_score),
             float(record.resume_ai_score),
             float(record.repo_ai_score) if record.repo_ai_score is not None else None,
-            float(record.interview_trust_score) if record.interview_trust_score is not None else None,
+            (
+                float(record.interview_trust_score)
+                if record.interview_trust_score is not None
+                else None
+            ),
             float(record.suspicion_index),
             bool(record.flagged),
             record.severity,
@@ -166,8 +170,8 @@ class PreScreeningStore:
         if self._spark is not None:
             try:
                 self._spark.stop()
-            except Exception:
-                pass
+            except Exception as exc:  # best-effort shutdown
+                self._log.warning("prescreening_store_spark_stop_failed", error=str(exc))
             self._spark = None
             self._log.info("prescreening_store_closed")
 

@@ -1,5 +1,21 @@
 # TrustSignal AI
 
+[![CI](https://github.com/OctavioPB/Trust_Signal_AI/actions/workflows/ci.yml/badge.svg)](https://github.com/OctavioPB/Trust_Signal_AI/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-64%25-yellowgreen)](https://github.com/OctavioPB/Trust_Signal_AI/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-648%20passing-brightgreen)](tests/)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Playwright](https://img.shields.io/badge/e2e-Playwright-2EAD33?logo=playwright&logoColor=white)](frontend/e2e/)
+
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![Apache Kafka](https://img.shields.io/badge/Kafka-231F20?logo=apachekafka&logoColor=white)
+![Apache Spark](https://img.shields.io/badge/Spark%20%2B%20Delta%20Lake-E25A1C?logo=apachespark&logoColor=white)
+![Apache Airflow](https://img.shields.io/badge/Airflow-017CEE?logo=apacheairflow&logoColor=white)
+![Ollama](https://img.shields.io/badge/Ollama-Gemma%20%7C%20Qwen-000000?logo=ollama&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)
+
 **Interview authenticity scoring powered by hybrid streaming + batch analytics.**
 
 TrustSignal AI detects AI-assisted interview fraud in real time and delivers a
@@ -8,6 +24,36 @@ signal modules analyse the audio and transcript of each interview; a weighted
 aggregation engine combines them into a single, explainable score.
 
 > Built by **OPB — Octavio Pérez Bravo · Data & AI Strategy Architect**
+
+---
+
+## Screenshots
+
+All screenshots run in demo mode with synthetic data, so no backend is needed.
+
+**Session analysis.** Live TrustScore gauge, flag status and key metrics for one interview.
+
+![Session analysis](docs/screenshots/session.png)
+
+**Dark theme.** Toggle it with ◐ in the top bar; the choice is saved in the browser.
+
+![Session analysis, dark theme](docs/screenshots/session-dark.png)
+
+**Signal breakdown.** Raw and weighted score for each of the five modules, plus the contribution mix and the plain-language reasons for the flag.
+
+![Signal breakdown](docs/screenshots/session-signals.png)
+
+<table>
+  <tr>
+    <td width="50%"><b>Analytics</b>: TrustScore distribution and risk tiers across all sessions.<br><img src="docs/screenshots/analytics.png" alt="Analytics"></td>
+    <td width="50%"><b>Candidate pre-screening</b>: resume and repository AI scores before the interview.<br><img src="docs/screenshots/candidates.png" alt="Candidate pre-screening"></td>
+  </tr>
+  <tr>
+    <td colspan="2"><b>Signal models</b>: health, accuracy, false-positive rate and weight for each detection module.<br><img src="docs/screenshots/models.png" alt="Signal models"></td>
+  </tr>
+</table>
+
+To regenerate them, run `npm run dev` and then, in a second terminal, `npm run screenshots` (both in `frontend/`).
 
 ---
 
@@ -134,6 +180,8 @@ flagged         = suspicion_index ≥ 0.65
 
 `airflow/dags/retraining_dag.py` — scheduled daily at **02:00 UTC**.
 
+**Labels come only from human review.** The DAG never trains on the system's own flags: that would be a feedback loop in which a false positive is learned as a positive and makes similar honest answers look more suspicious the next night. A reviewer confirms or clears each flag (`POST /session/{id}/review`, or the buttons on the flag panel); verdicts go to an append-only review log (`session_reviews/`, one Parquet file per review, reviewer stored only as a pseudonymous hash). Confirmed sessions are positives; cleared sessions are negatives, the audio and answers the model got wrong.
+
 ### Task Dependency Graph
 
 ```
@@ -154,7 +202,11 @@ flagged         = suspicion_index ≥ 0.65
   │  (RandomForest + MFCC)    │        │  (append JSONL pairs) │
   │  → YYYYMMDD_bg_clf.pkl   │        └──────────┬───────────┘
   └──────────────┬────────────┘                   │
-                 │                                │
+                 │                                ▼
+                 │                     ┌────────────────────────┐
+                 │                     │  generate_llm_answers  │
+                 │                     │  (Ollama: Gemma→Qwen)  │
+                 │                     └──────────┬─────────────┘
                  └──────────────┬─────────────────┘
                                 ▼
                        ┌──────────────┐
@@ -167,10 +219,11 @@ flagged         = suspicion_index ≥ 0.65
 
 | Task | Description |
 |------|-------------|
-| `extract_suspicious` | DuckDB `parquet_scan()` over `transcript_segments/**/*.parquet`; filters `suspicious_flag = true` in the 24 h window |
-| `compute_embeddings` | Embeds CANDIDATE segment texts; appends to `VECTOR_STORE_PATH/{embeddings.npy, metadata.json}` |
-| `retrain_bg_classifier` | Downloads suspicious-session audio from MinIO; extracts MFCC features; retrains `BackgroundAudioClassifier` if ≥ 10 new samples; uploads `YYYYMMDD_bg_classifier.pkl` to `model-artifacts/` |
-| `update_answer_bank` | Extracts RECRUITER→CANDIDATE Q&A pairs; deduplicates; appends to `data/llm_answer_bank.jsonl` |
+| `extract_suspicious` | DuckDB join of `transcript_segments` with the latest review per session; keeps sessions reviewed in the 24 h window, each tagged `confirmed` or `cleared`. Unreviewed flags are ignored |
+| `compute_embeddings` | Embeds CANDIDATE texts from confirmed sessions only; appends to `VECTOR_STORE_PATH/{embeddings.npy, metadata.json}` |
+| `retrain_bg_classifier` | Downloads reviewed-session audio from MinIO; labels it by verdict (confirmed = 1, cleared = 0); retrains `BackgroundAudioClassifier` if ≥ 10 samples and both classes are present; uploads `YYYYMMDD_bg_classifier.pkl` to `model-artifacts/` |
+| `update_answer_bank` | Extracts RECRUITER→CANDIDATE Q&A pairs from confirmed sessions only; deduplicates; appends to `data/llm_answer_bank.jsonl` |
+| `generate_llm_answers` | Answers up to `LLM_ANSWER_GEN_MAX` bank questions with the local LLM router (Gemma, falling back to Qwen); appends entries tagged with `source_model`. If Ollama is unreachable it logs and appends nothing; the DAG does not fail |
 | `notify` | Sends Slack Block Kit payload to `SLACK_WEBHOOK_URL`; falls back to structured log if env var not set |
 
 All tasks inherit `retries=2`, `retry_delay=timedelta(minutes=5)` from `DEFAULT_ARGS`.
@@ -189,8 +242,9 @@ All tasks inherit `retries=2`, `retry_delay=timedelta(minutes=5)` from `DEFAULT_
 | Embeddings | Sentence-Transformers `all-MiniLM-L6-v2` |
 | Audio classification | LibROSA (MFCC) + scikit-learn RandomForest |
 | NLP scoring | HuggingFace `distilgpt2` (perplexity) |
+| Local LLM routing | Ollama: Gemma (`gemma4:26b-a4b-it-qat`) with Qwen (`qwen3:4b-instruct-2507-q4_K_M`) fallback; generates LLM answer-bank entries nightly |
 | API | FastAPI + JWT HS256 + Pydantic + CORSMiddleware |
-| React dashboard | React 19 + TypeScript 5.4 + Vite 5 + Zustand 4 |
+| React dashboard | React 19 + TypeScript 6 + Vite 8 + Zustand 5 |
 | Legacy dashboard | Streamlit + Plotly (retained for reference) |
 | Ad-hoc queries | DuckDB `parquet_scan()` over Delta tables |
 | Observability | structlog (JSON) — no PII in logs; optional Sentry integration |
@@ -366,6 +420,7 @@ Open **http://localhost:5173**
 | `npm run lint` | ESLint (TypeScript strict) |
 | `npm test` | Vitest unit tests (fetch mocked) |
 | `npx playwright test` | Playwright e2e smoke tests (requires dev server) |
+| `npm run screenshots` | Regenerate the README screenshots in `docs/screenshots/` (requires dev server) |
 
 #### Playwright setup (first time)
 
@@ -390,7 +445,11 @@ Open `http://localhost:8501` → click **Load Demo Data**.
 ```bash
 pytest tests/unit/ -v
 pytest tests/integration/ -v   # requires Docker stack
+pytest --cov                   # coverage report (fails below 60 %)
+ruff check .                   # lint
 ```
+
+CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs all of these on every push and pull request, along with the PII audit, ESLint, the frontend build, Vitest with coverage and the Playwright e2e tests.
 
 ### 8. Trigger a manual DAG run (dev only)
 
@@ -399,6 +458,102 @@ airflow dags trigger trustsignal_nightly_retraining
 ```
 
 
+
+---
+
+## Detection Evaluation
+
+`evals/` holds a labelled evaluation set and a CI gate, so every accuracy claim is measured and every change to a signal, weight or the answer bank is checked for regressions. The **Detection evaluation gate** CI job fails if AUROC or TPR at 1% FPR drops, or any human group's flag rate rises, against [evals/baseline.json](evals/baseline.json).
+
+**The set (650 texts).** Third-party text is downloaded at build time from pinned commits and verified by SHA-256, never committed.
+
+| Group | Label | n | Source |
+|---|---|---|---|
+| `web_qa` | human | 150 | [HC3](https://huggingface.co/datasets/Hello-SimpleAI/HC3) `open_qa` human answers (CC-BY-SA-4.0) |
+| `chatgpt_qa` | AI | 150 | HC3 ChatGPT answers to the same questions |
+| `native_essay` | human | 88 | Hewlett 8th-grade essays ([Liang et al. 2023](https://github.com/Weixin-Liang/ChatGPT-Detector-Bias)) |
+| `non_native_essay` | human | 91 | TOEFL essays (Liang et al.) |
+| `gpt4_polished` | AI-assisted | 91 | the same TOEFL essays polished by GPT-4 |
+| `local_llm` | AI | 40 | interview answers from local Gemma and Qwen ([evals/data/local_llm.jsonl](evals/data/local_llm.jsonl)) |
+| `paraphrased` | AI | 40 | those answers rewritten by Qwen to sound spoken |
+
+Q&A pairs need at least 40 words on both sides, so answer length alone can't separate the classes.
+
+**Baseline (2026-11-26).** Group flag rates use the threshold that gives 5% false positives overall.
+
+| Scorer | AUROC | TPR @ 1% FPR | Non-native flag rate | Native flag rate |
+|---|---|---|---|---|
+| Fused, as the API runs it | 0.856 | 0.196 | 16.5% | 1.1% |
+| Calibrated fusion, perplexity (`ml/fusion.py`, cross-fitted) | 0.864 | 0.193 | 16.5% | 1.1% |
+| **Calibrated fusion, Binoculars** (cross-fitted) | **0.950** | **0.548** | 17.6% | 0.0% |
+| Burstiness | 0.851 | 0.237 | 15.4% | 2.3% |
+| Perplexity (`distilgpt2`) | 0.726 | 0.000 | 0.0% | 0.0% |
+| **Binoculars** (SmolLM2-135M pair) | **0.912** | **0.495** | 8.8% | 0.0% |
+| Semantic similarity | 0.570 | 0.134 | 14.3% | 3.4% |
+| Vocabulary richness | 0.431 | 0.000 | 0.0% | 18.2% |
+
+What the baseline shows:
+- **Text-only sessions are never flagged.** Without audio the two audio signals count as 0, so the suspicion index tops out at 0.55, below the 0.65 threshold. Renormalised over the text signals, 0.65 flags 68% of AI texts but also 18.5% of human texts, against a 2% target.
+- **Non-native writers are flagged 15× more often than native writers** at the same threshold, reproducing [Liang et al.](https://arxiv.org/abs/2304.02819) in this system.
+- **Perplexity saturates.** Its score caps at 1.0 for perplexity ≤ 30, and 27% of human texts hit the cap, so no threshold reaches 1% FPR.
+- **Vocabulary richness is worse than chance** (AUROC 0.43) on this data. Burstiness abstains on 149 texts with fewer than 3 sentences.
+- **Paraphrasing works as an evasion:** 90% of local LLM answers are flagged, but only 37.5% after a casual rewrite.
+
+### Calibrated scoring (opt-in)
+
+[ml/fusion.py](ml/fusion.py) replaces the hand-set weighted sum with:
+- **Missing signals modelled, not zeroed.** Each signal enters as its score plus a "not available" indicator.
+- **Fusion in log-odds space.** A logistic model with non-negative signal weights gives a calibrated probability. Each signal's contribution is additive, and raising a signal can never lower suspicion (property-tested with Hypothesis).
+- **A conformal threshold.** The flag threshold is set on held-out human texts so that, for human sessions like them, P(flagged) ≤ α = 2%.
+
+Held-out results at the conformal threshold (5-fold cross-fitting; no text is scored by a model that saw it):
+
+| | Legacy, as the API runs it | Calibrated, perplexity | Calibrated, Binoculars |
+|---|---|---|---|
+| False-positive rate | 0% (flags nothing) | 1.8% | **1.5%** (target ≤ 2%) |
+| AI texts caught | 0% | 22.1% | **59.2%** |
+| ChatGPT answers caught | 0% | 29.3% | **82.0%** |
+| Paraphrased answers caught | 0% | 5.0% | **42.5%** |
+| Calibration error (ECE) | 0.230 | 0.061 | **0.053** |
+| Flag rate, non-native vs native essays | n/a | 6.6% vs 0% | 5.5% vs 0% |
+
+The guarantee covers human sessions overall, not each group: non-native writers are still flagged more often. The model learns weight 0 for latency and background audio because the set has no audio, so it stays **opt-in**. Train it with `python -m ml.train_fusion` and serve it with `FUSION_MODEL_PATH=ml/artifacts/<date>_fusion.json`. The default stays the legacy engine until reviewed sessions with audio (`POST /session/{id}/review`) can train the audio weights.
+
+### Binoculars text detector
+
+[ml/features/binoculars.py](ml/features/binoculars.py) implements [Binoculars](https://arxiv.org/abs/2401.12070): the ratio of a model's perplexity on the text to how surprising one model finds another model's predictions for it. That normalisation is why it holds up where raw perplexity saturates. `TEXT_DETECTOR=binoculars` (the default) selects it through [ml/features/text_detector.py](ml/features/text_detector.py) for the API's `perplexity` slot. The paper used Falcon-7B. Pairs that run on CPU, compared with `python -m evals.compare_binoculars`:
+
+| Observer / performer | AUROC | TPR @ 1% FPR | CPU s / text |
+|---|---|---|---|
+| **SmolLM2-135M / -Instruct** (default) | **0.912** | 0.495 | **0.40** |
+| SmolLM2-360M / -Instruct | 0.904 | **0.545** | 0.95 |
+| Qwen2.5-0.5B / -Instruct | 0.803 | 0.265 | 1.47 |
+
+The 360M pair's lead at 1% FPR is about 17 texts, within noise at this sample size, at 2.4× the CPU cost. Set `BINOCULARS_OBSERVER` / `BINOCULARS_PERFORMER` to switch, and re-derive `BINOCULARS_MIDPOINT` from the class medians the comparison prints. The set is written text, not speech transcripts; spoken-interview data is the next gap to close.
+
+### Early detection that survives repeated checks
+
+A live dashboard re-checks the score after every turn, and each look is another chance to flag an honest candidate by luck. [ml/sequential.py](ml/sequential.py) adds evidence turn by turn, as in Wald's sequential test. Each candidate turn's Binoculars score becomes a clipped log-likelihood ratio, and the running sum is flagged the first time it crosses a threshold. The threshold is set conformally on the **maximum** the running evidence reaches in held-out human sessions. A human session is ever flagged only if its peak crosses it, so P(ever flagged) ≤ α however often the score is polled. This doesn't assume turns are independent, which one person's turns aren't.
+
+`python -m evals.sequential` splits each evaluation text into 2-sentence turns (650 sessions, median 3 turns) and cross-fits by session:
+
+| Rule, checked after every turn | False-positive rate | AI sessions caught |
+|---|---|---|
+| Running average vs a threshold set for one final look (typical dashboard) | **9.7%** (1.8% if checked only once) | 62.3% |
+| Summed evidence vs a one-look threshold | 2.7% (2.4% if checked only once) | 43.9% |
+| **Sequential rule** (`ml/sequential.py`) | **1.8%** (target ≤ 2%) | **40.2%** |
+
+Detection with the sequential rule: 27.7% of AI sessions by turn 2, 37.4% by turn 3, median 2 turns. The naive running average catches more only because it flags 5× more honest candidates. Turn-level detection is weaker than whole-answer detection (59% at 1.5% FPR): a 2-sentence turn gives Binoculars much less text. Serve it with `SEQUENTIAL_MODEL_PATH=ml/artifacts/<date>_sequential.json` and post each turn to `POST /session/{id}/turn`. An early flag carries its own reason, appears in `/score`, and is kept when the session ends.
+
+```bash
+python -m evals.build_dataset        # download pinned sources → evals/data/eval_set.jsonl
+python -m evals.run --check          # score, print, gate against the baseline
+python -m evals.run --update-baseline   # accept new numbers (commit evals/baseline.json)
+python -m evals.sequential --check   # sequential early-detection gate (evals/baseline_sequential.json)
+python -m ml.train_fusion            # → ml/artifacts/<date>_fusion.json
+python -m ml.train_sequential        # → ml/artifacts/<date>_sequential.json
+python -m evals.generate_local       # regenerate the local slice (needs Ollama)
+```
 
 ---
 
@@ -417,6 +572,9 @@ airflow dags trigger trustsignal_nightly_retraining
 | `GET` | `/session/{id}/report/pdf` | Download PDF report |
 | `POST` | `/session/{id}/end` | Close session and lock final score |
 | `DELETE` | `/session/{id}` | GDPR erasure (Article 17) |
+| `POST` | `/session/{id}/review` | Human verdict on an ended session: `confirmed` or `cleared` (the only training label) |
+| `GET` | `/reviews/pending` | Caller's flagged sessions still awaiting review, oldest first |
+| `POST` | `/session/{id}/turn` | Add one candidate turn's text score; returns running evidence and an anytime-valid early flag |
 
 ### Pre-screening (candidates)
 
@@ -460,6 +618,22 @@ Interactive docs: `http://localhost:8000/docs`
 | `OPENAI_API_KEY` | _(empty)_ | Optional cloud Whisper fallback |
 | `VECTOR_STORE_PATH` | `data/vector_store` | Embedding store path |
 | `SUSPICION_THRESHOLD` | `0.65` | Interview flag threshold (suspicion_index ≥ this) |
+| `FUSION_MODEL_PATH` | _(empty)_ | Calibrated fusion artifact (`ml/artifacts/<date>_fusion.json`); empty = legacy weighted sum |
+| `TEXT_DETECTOR` | `binoculars` | Language-model signal for the `perplexity` slot: `binoculars` or `perplexity` |
+| `BINOCULARS_OBSERVER` / `BINOCULARS_PERFORMER` | `HuggingFaceTB/SmolLM2-135M` / `-Instruct` | Model pair (must share a tokenizer) |
+| `BINOCULARS_MIDPOINT` / `BINOCULARS_SCALE` | `0.878` / `0.05` | Logistic map from Binoculars score to suspicion |
+| `SEQUENTIAL_MODEL_PATH` | _(empty)_ | Sequential early-detection artifact (`ml/artifacts/<date>_sequential.json`); empty = off |
+
+**Local LLM routing (Ollama)**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server |
+| `LLM_PROFILE` | `gemma` | `gemma` = Gemma with Qwen fallback; `qwen` = Qwen only |
+| `LLM_MODEL_GEMMA` | `gemma4:26b-a4b-it-qat` | Large model tag |
+| `LLM_MODEL_QWEN` | `qwen3:4b-instruct-2507-q4_K_M` | Small / fallback model tag |
+| `LLM_TIMEOUT_S` | `300` | Per-request timeout (seconds) |
+| `LLM_ANSWER_GEN_MAX` | `10` | Questions answered per nightly DAG run; `0` disables |
 
 **Pre-screening pipeline**
 
@@ -497,6 +671,20 @@ Interactive docs: `http://localhost:8000/docs`
 5. **Lazy infrastructure imports** — `minio` and `fpdf2` are imported at call-site, not module level; the API and dashboard start without those packages installed.
 6. **DAG-gated model updates** — Hard rule: classifier retraining only runs via `trustsignal_nightly_retraining`; no ad-hoc triggers in production.
 7. **React over Streamlit** — The primary dashboard is a React 19 + TypeScript 5.4 SPA (Sprint 11–13); Streamlit is retained under `dashboard/legacy/` for reference only and receives no new feature work.
+
+---
+
+## Planning & Documentation
+
+The `planning/` directory contains the full decision record for the project. All files are gitignored — they are internal working documents, not production artefacts.
+
+| Document | Audience | Purpose |
+|----------|----------|---------|
+| `planning/DECISIONS.md` | Engineers, technical reviewers | Justifies every architectural decision, technology choice, and file in the repository from a senior data engineering perspective |
+| `planning/Business.md` | Business stakeholders, HR leadership, compliance | Explains the talent acquisition problem, the TrustScore, bias and legal risk, ATS integration, and people analytics concepts — no technical jargon |
+| `planning/PLAN.md` | All | Sprint roadmap with task checklists; all 22 sprints complete |
+| `planning/CLAUDE.md` | AI agents, contributors | Codebase constitution: hard rules, coding standards, domain concepts, environment variable reference |
+| `planning/BRAND.md` | Designers, frontend contributors | Visual identity, color tokens, typography, and all UI design decisions |
 
 ---
 

@@ -36,6 +36,40 @@ OPENAI_API_KEY: str | None = os.getenv("OPENAI_API_KEY") or None
 # ── ML ────────────────────────────────────────────────────────────────────────
 VECTOR_STORE_PATH: str = os.getenv("VECTOR_STORE_PATH", "data/vector_store")
 SUSPICION_THRESHOLD: float = float(os.getenv("SUSPICION_THRESHOLD", "0.65"))
+# Calibrated fusion artifact (ml/fusion.py). Empty = legacy weighted sum.
+# Trained on text only so far: audio signals get weight 0 until reviewed sessions
+# with audio are available (see evals/ and README "Detection Evaluation").
+FUSION_MODEL_PATH: str = os.getenv("FUSION_MODEL_PATH", "")
+
+# ── Text AI-detector (ml/features/binoculars.py) ──────────────────────────────
+# Binoculars (Hans et al. 2024): observer = base model, performer = its instruct
+# tune; they must share a tokenizer. MIDPOINT/SCALE map the Binoculars score to a
+# [0, 1] suspicion (score == MIDPOINT → 0.5); set from the evals/ class medians.
+# SmolLM2-135M pair: human median 0.978, AI median 0.778 on evals/ (2026-11-26)
+# → midpoint 0.878, scale (0.978 - 0.778) / 4 = 0.05. Re-derive when changing pair
+# (python -m evals.compare_binoculars). SmolLM2-360M scores 54.5% vs 49.5% TPR at
+# 1% FPR but costs 2.4x CPU; set both IDs to the 360M pair to use it.
+BINOCULARS_OBSERVER: str = os.getenv("BINOCULARS_OBSERVER", "HuggingFaceTB/SmolLM2-135M")
+BINOCULARS_PERFORMER: str = os.getenv(
+    "BINOCULARS_PERFORMER", "HuggingFaceTB/SmolLM2-135M-Instruct"
+)
+BINOCULARS_MIDPOINT: float = float(os.getenv("BINOCULARS_MIDPOINT", "0.878"))
+BINOCULARS_SCALE: float = float(os.getenv("BINOCULARS_SCALE", "0.05"))
+# Language-model signal behind the API's "perplexity" slot: binoculars | perplexity
+TEXT_DETECTOR: str = os.getenv("TEXT_DETECTOR", "binoculars")
+# Anytime-valid early detection across turns (ml/sequential.py). Empty = disabled.
+SEQUENTIAL_MODEL_PATH: str = os.getenv("SEQUENTIAL_MODEL_PATH", "")
+
+# ── Local LLM routing (Ollama: Gemma / Qwen) ──────────────────────────────────
+# Profile "gemma": generation on Gemma, falling back to Qwen; utility on Qwen.
+# Profile "qwen":  every task on Qwen, no fallback (lighter hardware).
+OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+LLM_PROFILE: str = os.getenv("LLM_PROFILE", "gemma")
+LLM_MODEL_GEMMA: str = os.getenv("LLM_MODEL_GEMMA", "gemma4:26b-a4b-it-qat")
+LLM_MODEL_QWEN: str = os.getenv("LLM_MODEL_QWEN", "qwen3:4b-instruct-2507-q4_K_M")
+LLM_TIMEOUT_S: float = float(os.getenv("LLM_TIMEOUT_S", "300"))
+# Nightly DAG: max bank questions answered by the routed LLM per run. 0 disables the task.
+LLM_ANSWER_GEN_MAX: int = int(os.getenv("LLM_ANSWER_GEN_MAX", "10"))
 
 # ── FastAPI ───────────────────────────────────────────────────────────────────
 FASTAPI_SECRET_KEY: str = os.getenv("FASTAPI_SECRET_KEY", "dev-secret-replace-in-production")

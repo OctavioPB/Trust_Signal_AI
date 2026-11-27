@@ -12,6 +12,9 @@ build/
 .pytest_cache/
 .coverage
 htmlcov/
+coverage.xml
+pytest-results.xml
+frontend/coverage/
 .venv/
 venv/
 env/
@@ -50,3 +53,7 @@ planning/
 # ── Local demo script (personal — not for CI) ────────────────────────────────
 demo.ps1
 .demo_pids
+# Evaluation: downloaded third-party data and run outputs
+evals/data/cache/
+evals/data/eval_set.jsonl
+evals/results/

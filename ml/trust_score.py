@@ -8,6 +8,13 @@ suspicion_index = Σ (signal_score_i × weight_i)   ∈ [0, 1]
 
 Higher TrustScore = more trustworthy candidate.
 
+Two modes:
+  legacy (default)  the fixed weighted sum below; a missing signal counts as 0.
+  calibrated        pass ``fusion=FusionModel`` (or set FUSION_MODEL_PATH): the
+                    suspicion index becomes a calibrated probability from
+                    ``ml.fusion``, missing signals are modelled explicitly, and the
+                    flag uses the conformal threshold (false positives <= alpha).
+
 Default weights (configurable at construction time):
   Response Latency     0.25
   Background Audio     0.20
@@ -19,10 +26,15 @@ Default weights (configurable at construction time):
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 import structlog
 
 import config
+
+if TYPE_CHECKING:
+    from ml.fusion import FusionModel
 
 logger = structlog.get_logger(__name__)
 
@@ -103,13 +115,17 @@ class TrustScoreEngine:
             ``DEFAULT_WEIGHTS``. The full weight set must sum to 1.0 ± 1e-4.
         suspicion_threshold: Sessions above this index are flagged.
             Defaults to ``config.SUSPICION_THRESHOLD`` (env: SUSPICION_THRESHOLD).
+        fusion: Optional calibrated fusion model; when given, it replaces the
+            weighted sum and the fixed threshold (see module docstring).
     """
 
     def __init__(
         self,
         weights: dict[str, float] | None = None,
         suspicion_threshold: float | None = None,
+        fusion: FusionModel | None = None,
     ) -> None:
+        self._fusion = fusion
         self._weights = dict(DEFAULT_WEIGHTS)
         if weights:
             for key, val in weights.items():
@@ -138,11 +154,11 @@ class TrustScoreEngine:
     def compute(
         self,
         session_id: str,
-        latency_score: float,
-        bg_audio_score: float,
-        perplexity_score: float,
-        burstiness_score: float,
-        similarity_score: float,
+        latency_score: float | None,
+        bg_audio_score: float | None,
+        perplexity_score: float | None,
+        burstiness_score: float | None,
+        similarity_score: float | None,
     ) -> TrustScoreResult:
         """Aggregate five signal scores into a TrustScore.
 
@@ -161,12 +177,19 @@ class TrustScoreEngine:
             TrustScoreResult with ``trust_score`` in [0, 100] and a full
             per-signal breakdown sorted by weighted contribution descending.
         """
+        given: dict[str, float | None] = {
+            "latency":    latency_score,
+            "bg_audio":   bg_audio_score,
+            "perplexity": perplexity_score,
+            "burstiness": burstiness_score,
+            "similarity": similarity_score,
+        }
+        if self._fusion is not None:
+            return self._compute_calibrated(session_id, given)
+
+        # Legacy: a missing signal (None) counts as 0.
         raw_scores: dict[str, float] = {
-            "latency":    float(max(0.0, min(1.0, latency_score))),
-            "bg_audio":   float(max(0.0, min(1.0, bg_audio_score))),
-            "perplexity": float(max(0.0, min(1.0, perplexity_score))),
-            "burstiness": float(max(0.0, min(1.0, burstiness_score))),
-            "similarity": float(max(0.0, min(1.0, similarity_score))),
+            k: float(max(0.0, min(1.0, v if v is not None else 0.0))) for k, v in given.items()
         }
 
         signals: list[SignalBreakdown] = []
@@ -214,6 +237,72 @@ class TrustScoreEngine:
         )
 
         return result
+
+    def _compute_calibrated(
+        self, session_id: str, given: dict[str, float | None]
+    ) -> TrustScoreResult:
+        """Calibrated fusion: probability, additive log-odds evidence, conformal flag."""
+        fusion = self._fusion
+        assert fusion is not None
+        scores = {
+            k: (None if v is None else float(max(0.0, min(1.0, v)))) for k, v in given.items()
+        }
+        proba = fusion.predict_proba(scores)
+        contrib = fusion.contributions(scores)
+
+        signals = [
+            SignalBreakdown(
+                signal_name=_SIGNAL_LABELS[key],
+                raw_score=0.0 if raw is None else raw,
+                weight=round(fusion.weights.get(key, 0.0), 4),
+                weighted_contribution=round(contrib.get(key, 0.0), 4),
+                explanation=(
+                    "Not available for this session, so it neither raises nor lowers "
+                    "the score." if raw is None else _explain(key, raw)
+                ),
+            )
+            for key, raw in scores.items()
+        ]
+        signals.sort(key=lambda s: s.weighted_contribution, reverse=True)
+
+        flagged = proba > fusion.threshold
+        flag_reason = ""
+        if flagged:
+            flag_reason = (
+                f"AI-assistance probability {proba:.2f} exceeds the calibrated threshold "
+                f"{fusion.threshold:.2f} (false-positive rate at most {fusion.alpha:.0%} on "
+                "human sessions).\n" + _build_flag_reason(signals, proba)
+            )
+
+        result = TrustScoreResult(
+            session_id=session_id,
+            trust_score=round((1.0 - proba) * 100.0, 2),
+            suspicion_index=round(proba, 4),
+            signals=signals,
+            flagged=flagged,
+            flag_reason=flag_reason,
+        )
+        self._log.info(
+            "trust_score_computed",
+            session_id=session_id,
+            trust_score=result.trust_score,
+            suspicion_index=result.suspicion_index,
+            flagged=flagged,
+            mode="calibrated",
+        )
+        return result
+
+
+def load_engine_from_config() -> TrustScoreEngine:
+    """Engine for the API: calibrated when FUSION_MODEL_PATH names an artifact."""
+    path = getattr(config, "FUSION_MODEL_PATH", "") or ""
+    if not path:
+        return TrustScoreEngine()
+    from ml.fusion import FusionModel
+
+    model = FusionModel.load(Path(path))
+    logger.info("fusion_model_loaded", path=path, threshold=model.threshold, alpha=model.alpha)
+    return TrustScoreEngine(fusion=model)
 
 
 # ── Explanation helpers (pure, independently testable) ─────────────────────────

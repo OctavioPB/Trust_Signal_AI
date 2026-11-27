@@ -5,7 +5,7 @@
  * Clears the interval on unmount (no stale closure leaks).
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { ApiError, getScore } from "../services/api";
 import type { ScoreResponse } from "../types";
 
@@ -23,29 +23,22 @@ export function usePolling(
 ): PollingResult {
   const [data, setData]       = useState<ScoreResponse | null>(null);
   const [error, setError]     = useState<string | null>(null);
-  const [isPolling, setIsPolling] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Set when the session leaves "live"; reset whenever the polling inputs change.
+  const [stopped, setStopped] = useState(false);
+
+  const active = enabled && !!token && !!sessionId;
 
   useEffect(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    setIsPolling(false);
+    if (!active) return;
 
-    if (!enabled || !token || !sessionId) return;
-
-    setIsPolling(true);
-
-    timerRef.current = setInterval(async () => {
+    const timer = setInterval(async () => {
       try {
-        const score = await getScore(token, sessionId);
+        const score = await getScore(token!, sessionId);
         setData(score);
         setError(null);
         if (score.status !== "live") {
-          clearInterval(timerRef.current!);
-          timerRef.current = null;
-          setIsPolling(false);
+          clearInterval(timer);
+          setStopped(true);
         }
       } catch (e) {
         setError(e instanceof ApiError ? e.message : "Polling error");
@@ -53,13 +46,11 @@ export function usePolling(
     }, interval);
 
     return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-      setIsPolling(false);
+      clearInterval(timer);
+      setStopped(false);
     };
-  }, [enabled, token, sessionId, interval]);
+  }, [active, token, sessionId, interval]);
 
-  return { data, error, isPolling };
+  // Derived, so it is accurate on the same render that enables polling.
+  return { data, error, isPolling: active && !stopped };
 }

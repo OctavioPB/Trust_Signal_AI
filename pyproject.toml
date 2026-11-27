@@ -31,6 +31,8 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S"]
+# Legacy Streamlit dashboard: long inline HTML/CSS strings; superseded by frontend/.
+"dashboard/legacy/**" = ["E501"]
 
 # ── PII audit ─────────────────────────────────────────────────────────────────
 # Run:  python scripts/pii_audit.py
@@ -47,4 +49,18 @@ target-version = ["py311"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 addopts = "--tb=short"
+
+# ── Coverage ──────────────────────────────────────────────────────────────────
+# Run:  pytest --cov --cov-report=term-missing
+[tool.coverage.run]
+source = ["ml", "ingestion", "api", "storage", "transcription", "airflow", "dashboard"]
+omit = ["*/__init__.py", "dashboard/legacy/*"]
+
+[tool.coverage.report]
+# Ratchet: floor at the current baseline; raise it as coverage grows.
+# Target per CLAUDE.md §6 is ≥ 80 % for ml/ and ingestion/.
+fail_under = 60
+show_missing = true
+skip_covered = true

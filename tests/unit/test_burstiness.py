@@ -12,8 +12,6 @@ CV mapping (linear):
 
 from __future__ import annotations
 
-import math
-
 import pytest
 
 from ml.features.burstiness import (
@@ -156,7 +154,8 @@ class TestScoreBurstiness:
             "multiple domains including infrastructure, data engineering, and machine learning. "
             "Yes. "
             "My background includes leading cross-functional teams through complex multi-month "
-            "technical migrations while maintaining alignment with senior stakeholders across the org. "
+            "technical migrations while maintaining alignment with senior stakeholders "
+            "across the org. "
             "Sure."
         )
         result = score_burstiness(SESSION, text)
@@ -225,8 +224,9 @@ class TestScoreBurstiness:
             "Yeah so I started out kind of randomly. Um, did some web stuff. "
             "Then backend. I guess I just stuck with it. "
             "Honestly the first job was mostly figuring out how not to break things — "
-            "like huge embarrassing bugs that you'd find on Friday at 5pm when everyone's trying to leave, "
-            "and your manager's looking at you and you're looking at the logs and nothing makes sense. "
+            "like huge embarrassing bugs that you'd find on Friday at 5pm when everyone's "
+            "trying to leave, and your manager's looking at you and you're looking at the "
+            "logs and nothing makes sense. "
             "Fun times. "
             "But yeah, I learned a lot from that."
         )

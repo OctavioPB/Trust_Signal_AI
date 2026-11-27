@@ -18,11 +18,9 @@ import numpy as np
 import pytest
 
 from ml.embeddings.similarity import (
-    ANSWER_BANK_PATH,
-    SimilarityFeatures,
     SemanticSimilarityScorer,
+    SimilarityFeatures,
 )
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -52,7 +50,9 @@ def _make_scorer(bank_entries: list[dict], embeddings: np.ndarray) -> SemanticSi
     # encode() call-sequence: first call = bank answers (batch), second = candidate (batch)
     call_count = [0]
 
-    def fake_encode(texts, convert_to_numpy=True, normalize_embeddings=True, show_progress_bar=False):
+    def fake_encode(
+        texts, convert_to_numpy=True, normalize_embeddings=True, show_progress_bar=False
+    ):
         idx = call_count[0]
         call_count[0] += 1
         if idx == 0:
@@ -221,7 +221,6 @@ class TestScore:
 
     def test_negative_similarity_clamped_to_zero(self) -> None:
         """Cosine similarity < 0 must be clamped to 0.0 for the suspicion score."""
-        d = 2
         bank = [{"question": "Q0", "answer": "A0"}]
         # bank embedding: (1, 0), candidate: (-1, 0) → cosine = -1.0
         emb = np.array([[1.0, 0.0], [-1.0, 0.0]], dtype=np.float32)
@@ -233,7 +232,7 @@ class TestScore:
     def test_injected_model_skips_download(self) -> None:
         """Providing _model must not trigger sentence_transformers import."""
         from unittest.mock import patch
-        with patch("ml.embeddings.similarity.SentenceTransformer") as mock_st:
+        with patch("sentence_transformers.SentenceTransformer") as mock_st:
             _ = self._make_orthogonal_scorer()
             mock_st.assert_not_called()
 

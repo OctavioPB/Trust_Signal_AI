@@ -15,10 +15,9 @@ Definition of Done (PLAN.md §2.8):
 from __future__ import annotations
 
 import asyncio
-import threading
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import numpy as np
 import pytest
@@ -123,7 +122,7 @@ async def test_60s_audio_all_chunks_arrive_in_minio() -> None:
         obj.object_name
         for obj in client.list_objects("raw-audio", prefix=f"{session_id}/", recursive=True)
     )
-    date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
+    date_str = datetime.now(UTC).strftime("%Y%m%d")
     assert objects[0].startswith(f"{session_id}/{date_str}/")
     assert objects[0].endswith(".pcm")
 

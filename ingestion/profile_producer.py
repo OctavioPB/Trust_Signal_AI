@@ -21,12 +21,10 @@ Payload schema:
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import structlog
 from confluent_kafka import KafkaException, Producer
-
-import config
 
 logger = structlog.get_logger(__name__)
 
@@ -35,6 +33,10 @@ def _on_delivery(err: Exception | None, msg: object) -> None:
     if err:
         logger.error("profile_event_delivery_failed", error=str(err))
 
+
+
+def _round2(value: float | None) -> float | None:
+    return round(value, 2) if value is not None else None
 
 class ProfileProducer:
     """Publishes pre-screening result events to candidate-profile-stream.
@@ -83,7 +85,7 @@ class ProfileProducer:
         Raises:
             KafkaException: On broker communication failure.
         """
-        iso_ts = datetime.fromtimestamp(scored_at, tz=timezone.utc).strftime(
+        iso_ts = datetime.fromtimestamp(scored_at, tz=UTC).strftime(
             "%Y%m%dT%H%M%SZ"
         )
         payload = json.dumps(
@@ -91,8 +93,8 @@ class ProfileProducer:
                 "candidate_uuid":        candidate_uuid,       # UUID — no PII
                 "prescreening_score":    round(prescreening_score, 2),
                 "resume_ai_score":       round(resume_ai_score, 2),
-                "repo_ai_score":         round(repo_ai_score, 2) if repo_ai_score is not None else None,
-                "interview_trust_score": round(interview_trust_score, 2) if interview_trust_score is not None else None,
+                "repo_ai_score":         _round2(repo_ai_score),
+                "interview_trust_score": _round2(interview_trust_score),
                 "flagged":               flagged,
                 "severity":              severity,
                 "flag_reason":           flag_reason,

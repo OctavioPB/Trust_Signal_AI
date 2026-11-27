@@ -20,7 +20,6 @@ from transcription.whisper_service import (
     pcm_to_wav,
 )
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _seg(

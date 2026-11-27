@@ -23,7 +23,7 @@ import re
 import time
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import structlog
@@ -254,7 +254,7 @@ class GitHubCrawler:
         default_branch = meta.get("default_branch", "main")
 
         since = (
-            datetime.now(tz=timezone.utc) - timedelta(days=365)
+            datetime.now(tz=UTC) - timedelta(days=365)
         ).strftime("%Y-%m-%dT%H:%M:%SZ")
         commits = self._fetch_commits(owner, repo_name, since)
 

@@ -21,9 +21,10 @@ Usage in a DAG:
 from __future__ import annotations
 
 import structlog
-from airflow.sensors.base import BaseSensorOperator
 from confluent_kafka import Consumer, KafkaException, TopicPartition
 from confluent_kafka.admin import AdminClient
+
+from airflow.sensors.base import BaseSensorOperator
 
 logger = structlog.get_logger(__name__)
 

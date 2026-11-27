@@ -18,8 +18,7 @@ from __future__ import annotations
 
 import io
 import re
-import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -40,7 +39,7 @@ _MINIMAL_PDF = b"%PDF-1.4 1 0 obj<</Type /Catalog>> endobj"
 
 
 def _make_token(recruiter_id: str = "integration-recruiter-uuid") -> str:
-    expire = datetime.now(timezone.utc) + timedelta(hours=1)
+    expire = datetime.now(UTC) + timedelta(hours=1)
     return jwt.encode(
         {"sub": recruiter_id, "exp": expire},
         config.FASTAPI_SECRET_KEY,
@@ -157,7 +156,7 @@ def test_upload_resume_kafka_event_published(
     client: TestClient, auth_headers: dict
 ) -> None:
     """A consume from candidate-resume-stream must yield one message per upload."""
-    from confluent_kafka import Consumer, KafkaException
+    from confluent_kafka import Consumer
 
     candidate_uuid = client.post("/candidates", headers=auth_headers).json()["candidate_uuid"]
 
