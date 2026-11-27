@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
-from unittest.mock import MagicMock
 
 from ml.features.section_uniformity import (
     _DIST_MAX_SUSPICION,
@@ -13,7 +14,6 @@ from ml.features.section_uniformity import (
     _score_from_distance,
     score_section_uniformity,
 )
-
 
 # ── Mock helper ────────────────────────────────────────────────────────────────
 

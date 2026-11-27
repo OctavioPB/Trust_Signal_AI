@@ -280,7 +280,9 @@ class BackgroundAudioClassifier:
             raise RuntimeError("Cannot serialise an untrained classifier.")
 
         buf = io.BytesIO()
-        pickle.dump({"clf": self._clf, "scaler": self._scaler}, buf, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(
+            {"clf": self._clf, "scaler": self._scaler}, buf, protocol=pickle.HIGHEST_PROTOCOL
+        )
         return buf.getvalue()
 
     # ── Private ───────────────────────────────────────────────────────────────

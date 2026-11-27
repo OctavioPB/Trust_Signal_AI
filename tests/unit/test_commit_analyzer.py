@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import math
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 
 import pytest
 
 from ingestion.commit_analyzer import (
-    CommitAnalysisResult,
     _BURST_THRESHOLD,
     _ENTROPY_HIGH_SUSPICION,
     _ENTROPY_LOW_SUSPICION,
@@ -21,12 +19,11 @@ from ingestion.commit_analyzer import (
 )
 from ingestion.github_crawler import CommitSummary
 
-
 # ── Fixtures ───────────────────────────────────────────────────────────────────
 
 def _make_commits_uniform(count: int, message_length: int = 12) -> list[CommitSummary]:
     """All commits have the same message length — AI-like."""
-    base_ts = datetime(2025, 1, 1, tzinfo=timezone.utc).timestamp()
+    base_ts = datetime(2025, 1, 1, tzinfo=UTC).timestamp()
     return [
         CommitSummary(
             sha=f"sha{i}",
@@ -39,7 +36,7 @@ def _make_commits_uniform(count: int, message_length: int = 12) -> list[CommitSu
 
 def _make_commits_varied(lengths: list[int]) -> list[CommitSummary]:
     """Commits with explicitly varied message lengths — human-like."""
-    base_ts = datetime(2025, 1, 1, tzinfo=timezone.utc).timestamp()
+    base_ts = datetime(2025, 1, 1, tzinfo=UTC).timestamp()
     return [
         CommitSummary(
             sha=f"sha{i}",
@@ -56,14 +53,14 @@ def _make_burst_commits(total: int, burst_fraction: float = 0.90) -> list[Commit
     rest_count = total - burst_count
 
     # Burst: all in the same ISO week
-    burst_base = datetime(2025, 6, 2, tzinfo=timezone.utc).timestamp()  # Monday week 23
+    burst_base = datetime(2025, 6, 2, tzinfo=UTC).timestamp()  # Monday week 23
     burst = [
         CommitSummary(sha=f"b{i}", committed_at=burst_base + i * 3600, message_length=10)
         for i in range(burst_count)
     ]
 
     # Rest: spread across earlier weeks
-    rest_base = datetime(2025, 1, 1, tzinfo=timezone.utc).timestamp()
+    rest_base = datetime(2025, 1, 1, tzinfo=UTC).timestamp()
     rest = [
         CommitSummary(sha=f"r{i}", committed_at=rest_base + i * 7 * 86400, message_length=10)
         for i in range(rest_count)
@@ -231,14 +228,14 @@ def test_weeks_between_two_weeks():
 
 def test_detect_burst_single_commit():
     """One commit → fraction 1.0 > threshold → burst True."""
-    ts = datetime(2025, 6, 2, tzinfo=timezone.utc).timestamp()
+    ts = datetime(2025, 6, 2, tzinfo=UTC).timestamp()
     assert _detect_velocity_burst([ts], _BURST_THRESHOLD) is True
 
 
 def test_detect_burst_below_threshold():
     """50 % in one week is below 80 % threshold → no burst."""
-    week_a = datetime(2025, 6, 2, tzinfo=timezone.utc).timestamp()  # week 23
-    week_b = datetime(2025, 6, 9, tzinfo=timezone.utc).timestamp()  # week 24
+    week_a = datetime(2025, 6, 2, tzinfo=UTC).timestamp()  # week 23
+    week_b = datetime(2025, 6, 9, tzinfo=UTC).timestamp()  # week 24
     timestamps = [week_a] * 5 + [week_b] * 5
     assert _detect_velocity_burst(timestamps, _BURST_THRESHOLD) is False
 
@@ -250,11 +247,13 @@ def test_detect_burst_empty():
 # ── _linear_map ────────────────────────────────────────────────────────────────
 
 def test_linear_map_entropy_at_high_suspicion_bound():
-    assert _linear_map(_ENTROPY_HIGH_SUSPICION, _ENTROPY_HIGH_SUSPICION, _ENTROPY_LOW_SUSPICION) == pytest.approx(1.0)
+    result = _linear_map(_ENTROPY_HIGH_SUSPICION, _ENTROPY_HIGH_SUSPICION, _ENTROPY_LOW_SUSPICION)
+    assert result == pytest.approx(1.0)
 
 
 def test_linear_map_entropy_at_low_suspicion_bound():
-    assert _linear_map(_ENTROPY_LOW_SUSPICION, _ENTROPY_HIGH_SUSPICION, _ENTROPY_LOW_SUSPICION) == pytest.approx(0.0)
+    result = _linear_map(_ENTROPY_LOW_SUSPICION, _ENTROPY_HIGH_SUSPICION, _ENTROPY_LOW_SUSPICION)
+    assert result == pytest.approx(0.0)
 
 
 def test_linear_map_clamped_above():

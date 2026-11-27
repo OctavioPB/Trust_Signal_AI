@@ -16,7 +16,7 @@ Assertions:
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -31,14 +31,16 @@ from airflow.dags.retraining_dag import (
     _update_answer_bank,
 )
 
-
 # ── Synthetic data factory ─────────────────────────────────────────────────────
 
-_DAG_START = datetime(2026, 1, 1, 2, 0, 0, tzinfo=timezone.utc)
+_DAG_START = datetime(2026, 1, 1, 2, 0, 0, tzinfo=UTC)
 _DAYS       = 30
 _SESSIONS_PER_DAY = 3
 _TURNS_PER_SESSION = 6   # alternating RECRUITER / CANDIDATE
 
+
+_RECRUITER_PREFIX = "Please describe your experience with"
+_CANDIDATE_PREFIX = "I have extensive experience in"
 
 def _build_synthetic_segments(days: int = _DAYS) -> list[dict]:
     """Build a 30-day corpus of alternating RECRUITER/CANDIDATE segments.
@@ -46,8 +48,8 @@ def _build_synthetic_segments(days: int = _DAYS) -> list[dict]:
     Total segments = days × sessions_per_day × turns_per_session
                    = 30 × 3 × 6 = 540
 
-    All CANDIDATE segments have suspicious_flag=True so they appear in
-    the extract result.
+    Every session carries a human review verdict (alternating confirmed /
+    cleared), as returned by ``query_reviewed_segments``.
     """
     segments = []
     for day in range(days):
@@ -62,11 +64,13 @@ def _build_synthetic_segments(days: int = _DAYS) -> list[dict]:
                     "chunk_seq":  turn,
                     "speaker":    speaker,
                     "text": (
-                        f"{'Please describe your experience with' if speaker == 'RECRUITER' else 'I have extensive experience in'} "
+                        f"{_RECRUITER_PREFIX if speaker == 'RECRUITER' else _CANDIDATE_PREFIX} "
                         f"topic-{day}-{sess}-{turn}."
                     ),
                     "start_ts":  ts,
                     "end_ts":    ts + 25.0,
+                    # Alternate human verdicts so retraining sees both classes.
+                    "verdict":   "confirmed" if sess % 2 == 0 else "cleared",
                 })
     return segments
 
@@ -123,7 +127,7 @@ class TestDagDryRun:
     """Run all five task callables on 30 days of synthetic data.
 
     External I/O is patched:
-      - query_suspicious_segments → returns synthetic corpus
+      - query_reviewed_segments   → returns synthetic reviewed corpus
       - embed_texts               → uses stub model (no download)
       - _make_object_store        → returns MagicMock (no MinIO)
       - SLACK_WEBHOOK_URL         → empty (notify falls back to log)
@@ -145,7 +149,7 @@ class TestDagDryRun:
 
     def test_01_extract_suspicious_returns_expected_keys(self) -> None:
         with patch(
-            "airflow.dags.retraining_dag.query_suspicious_segments",
+            "airflow.dags.retraining_dag.query_reviewed_segments",
             return_value=self.segments,
         ):
             result = _extract_suspicious(**self.context)
@@ -156,7 +160,7 @@ class TestDagDryRun:
 
     def test_01_extract_count_matches_segments(self) -> None:
         with patch(
-            "airflow.dags.retraining_dag.query_suspicious_segments",
+            "airflow.dags.retraining_dag.query_reviewed_segments",
             return_value=self.segments,
         ):
             result = _extract_suspicious(**self.context)
@@ -164,7 +168,7 @@ class TestDagDryRun:
 
     def test_01_extract_does_not_raise_on_empty_delta(self) -> None:
         with patch(
-            "airflow.dags.retraining_dag.query_suspicious_segments",
+            "airflow.dags.retraining_dag.query_reviewed_segments",
             return_value=[],
         ):
             result = _extract_suspicious(**self.context)
@@ -186,7 +190,7 @@ class TestDagDryRun:
             patch("airflow.dags.retraining_dag.embed_texts",
                   side_effect=lambda texts, **kw: stub_model.encode(texts)),
             patch("airflow.dags.retraining_dag.update_vector_store",
-                  return_value=len([s for s in self.segments if s["speaker"] == "CANDIDATE"])) as mock_vs,
+                  return_value=len([s for s in self.segments if s["speaker"] == "CANDIDATE"])),
             patch("airflow.dags.retraining_dag.config") as mock_cfg,
         ):
             mock_cfg.VECTOR_STORE_PATH = str(self.store_path)
@@ -283,12 +287,12 @@ class TestDagDryRun:
     def test_04_bank_grows_after_task(self) -> None:
         self._prime_xcom_with_segments()
         initial_lines = sum(
-            1 for l in self.bank_path.read_text().splitlines() if l.strip()
+            1 for line in self.bank_path.read_text().splitlines() if line.strip()
         )
         with patch("airflow.dags.retraining_dag.ANSWER_BANK_PATH", self.bank_path):
             result = _update_answer_bank(**self.context)
         final_lines = sum(
-            1 for l in self.bank_path.read_text().splitlines() if l.strip()
+            1 for line in self.bank_path.read_text().splitlines() if line.strip()
         )
         assert final_lines == initial_lines + result["pairs_appended"]
 
@@ -301,7 +305,10 @@ class TestDagDryRun:
     # ── Task 5: notify ─────────────────────────────────────────────────────────
 
     def _prime_all_xcom(self) -> None:
-        self.ti._xcom["extract_suspicious"]   = {"segments": self.segments, "count": len(self.segments)}
+        self.ti._xcom["extract_suspicious"]   = {
+            "segments": self.segments,
+            "count": len(self.segments),
+        }
         self.ti._xcom["compute_embeddings"]   = {"embeddings_added": 42}
         self.ti._xcom["retrain_bg_classifier"] = {"artifact_name": "20260101_bg_classifier.pkl",
                                                    "samples_used": 0, "retrained": False}
@@ -359,7 +366,7 @@ class TestDagDryRun:
         )
 
         with (
-            patch("airflow.dags.retraining_dag.query_suspicious_segments",
+            patch("airflow.dags.retraining_dag.query_reviewed_segments",
                   return_value=self.segments),
             patch("airflow.dags.retraining_dag.embed_texts",
                   side_effect=lambda texts, **kw: stub_model.encode(texts)),
@@ -401,8 +408,9 @@ class TestDagDryRun:
     def test_full_pipeline_default_args_present(self) -> None:
         """Verify DEFAULT_ARGS has retries=2 and retry_delay=5 min."""
         try:
-            from airflow.dags.retraining_dag import DEFAULT_ARGS
             from datetime import timedelta
+
+            from airflow.dags.retraining_dag import DEFAULT_ARGS
             assert DEFAULT_ARGS["retries"] == 2
             assert DEFAULT_ARGS["retry_delay"] == timedelta(minutes=5)
         except ImportError:

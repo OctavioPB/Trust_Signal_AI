@@ -25,7 +25,7 @@ from __future__ import annotations
 import re
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated
 
 import structlog
@@ -33,7 +33,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Upl
 from pydantic import BaseModel, Field
 
 import config
-from api.auth import _auth, _bearer
+from api.auth import _auth
 from api.rate_limiter import RATE_LIMIT, limiter
 
 logger = structlog.get_logger(__name__)
@@ -234,7 +234,7 @@ def create_candidate(
 async def upload_resume(
     candidate_id: str,
     recruiter_id: Annotated[str, Depends(_auth)],
-    file: UploadFile = File(...),
+    file: Annotated[UploadFile, File()],
 ) -> ResumeUploadResponse:
     """Upload a candidate resume document (PDF, DOCX, or plain text).
 
@@ -273,7 +273,7 @@ async def upload_resume(
             ),
         )
 
-    timestamp_iso = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    timestamp_iso = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
     try:
         store = _make_object_store()
@@ -292,7 +292,7 @@ async def upload_resume(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Resume storage temporarily unavailable.",
-        )
+        ) from exc
 
     # Publish Kafka event — non-fatal; MinIO upload already succeeded.
     # Sprint 15 DAG can recover via MinIO scan if the event is lost.

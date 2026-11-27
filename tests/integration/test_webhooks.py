@@ -21,17 +21,17 @@ from unittest.mock import MagicMock, patch
 import httpx
 import pytest
 
+import config
 from api.webhooks import (
+    _BACKOFF_SECONDS,
+    _MAX_RETRIES,
     TABLE_WEBHOOK_DLQ,
     WebhookDelivery,
     WebhookFlag,
     WebhookPayload,
-    _BACKOFF_SECONDS,
-    _MAX_RETRIES,
     build_payload_from_result,
     dispatch_to_configured_ats,
 )
-import config
 
 pytestmark = pytest.mark.integration
 

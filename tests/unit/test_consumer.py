@@ -11,7 +11,6 @@ import pytest
 
 from ingestion.consumer import AudioConsumer
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _make_mock_message(

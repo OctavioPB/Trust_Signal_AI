@@ -2,26 +2,40 @@
 
 Schedule: daily at 02:00 UTC (cron ``0 2 * * *``).
 
-Task graph:
+Training labels come ONLY from human reviews (``storage/review_store.py``), never
+from the system's own flags. Learning from its own flags would be a feedback loop:
+a false positive would be trained in as a positive and make similar honest
+answers score as more suspicious the next night. The first task therefore pulls
+the transcript segments of sessions whose latest human review landed in the DAG
+interval, each tagged with its verdict:
+
+    confirmed → positive label (AI assistance confirmed)
+    cleared   → negative label (the flag was a false positive)
+
+Task graph (``extract_suspicious`` keeps its task id for run-history continuity;
+it now extracts *reviewed* sessions):
     extract_suspicious
          │
          ▼
     compute_embeddings
          │
          ▼
-    retrain_bg_classifier ──► update_answer_bank
-         │                            │
-         └──────────┬─────────────────┘
-                    ▼
-                  notify
+    retrain_bg_classifier ──► update_answer_bank ──► generate_llm_answers
+         │                                                   │
+         └──────────────────────┬────────────────────────────┘
+                                ▼
+                              notify
 
-All five task callables are plain Python functions that accept an Airflow
+``generate_llm_answers`` uses ``ml.llm.router`` (Gemma / Qwen over Ollama).
+
+All six task callables are plain Python functions that accept an Airflow
 ``**context`` dict. They are defined BEFORE the DAG scaffold so that unit and
 integration tests can import and invoke them directly with a mocked context,
 without requiring a live Airflow installation.
 
 Dependency-injection pattern:
-  - ``query_suspicious_segments(..., _conn=None)`` accepts an optional DuckDB
+  - ``query_reviewed_segments(..., _conn=None)`` and
+    ``query_suspicious_segments(..., _conn=None)`` accept an optional DuckDB
     connection for testing.
   - ``embed_texts(..., _model=None)`` accepts an optional SentenceTransformer
     stub for testing.
@@ -39,7 +53,7 @@ Hard rules from CLAUDE.md:
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from itertools import groupby
 from pathlib import Path
 from typing import Any
@@ -124,7 +138,66 @@ def query_suspicious_segments(
         return []
 
     columns = ["session_id", "chunk_seq", "speaker", "text", "start_ts", "end_ts"]
-    return [dict(zip(columns, row)) for row in rows]
+    return [dict(zip(columns, row, strict=False)) for row in rows]
+
+
+def query_reviewed_segments(
+    delta_lake_path: str,
+    from_ts: float,
+    to_ts: float,
+    _conn: Any = None,
+) -> list[dict[str, Any]]:
+    """Segments of sessions whose LATEST human review falls in ``[from_ts, to_ts)``.
+
+    Each returned segment carries that review's ``verdict`` ("confirmed" or
+    "cleared"). Sessions without a review are excluded: an unreviewed flag is a
+    prediction, not a label. Returns ``[]`` (never raises) when either table does
+    not exist yet or the query fails.
+    """
+    import duckdb
+
+    from storage.review_store import TABLE_REVIEWS
+
+    conn = _conn or duckdb.connect()
+    segments_glob = f"{delta_lake_path}/transcript_segments/**/*.parquet"
+    reviews_glob = f"{delta_lake_path}/{TABLE_REVIEWS}/**/*.parquet"
+
+    try:
+        rows = conn.execute(
+            """
+            WITH latest AS (
+                SELECT session_id, verdict, reviewed_at,
+                       row_number() OVER (
+                           PARTITION BY session_id ORDER BY reviewed_at DESC
+                       ) AS rn
+                FROM parquet_scan(?)
+            )
+            SELECT s.session_id, s.chunk_seq, s.speaker, s.text,
+                   s.start_ts, s.end_ts, l.verdict
+            FROM parquet_scan(?) AS s
+            JOIN latest AS l ON s.session_id = l.session_id
+            WHERE l.rn = 1
+              AND l.reviewed_at >= ?
+              AND l.reviewed_at <  ?
+            ORDER BY s.session_id, s.start_ts
+            """,
+            [reviews_glob, segments_glob, from_ts, to_ts],
+        ).fetchall()
+    except Exception as exc:
+        logger.warning(
+            "reviewed_segments_query_failed",
+            delta_lake_path=delta_lake_path,
+            error=str(exc),
+        )
+        return []
+
+    columns = ["session_id", "chunk_seq", "speaker", "text", "start_ts", "end_ts", "verdict"]
+    return [dict(zip(columns, row, strict=False)) for row in rows]
+
+
+def _confirmed_only(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Segments from sessions a human confirmed as AI-assisted."""
+    return [s for s in segments if s.get("verdict") == "confirmed"]
 
 
 def embed_texts(
@@ -186,7 +259,7 @@ def update_vector_store(
 
     emb_file  = path / _EMBEDDINGS_FILE
     meta_file = path / _METADATA_FILE
-    now_iso   = datetime.now(tz=timezone.utc).isoformat()
+    now_iso   = datetime.now(tz=UTC).isoformat()
     new_meta  = [{"text": t, "ts": now_iso} for t in new_texts]
 
     if emb_file.exists() and meta_file.exists():
@@ -321,9 +394,15 @@ def build_slack_payload(stats: dict[str, Any]) -> dict[str, Any]:
                 "type": "section",
                 "fields": [
                     {"type": "mrkdwn", "text": f"*Suspicious segments extracted:*\n{segments}"},
-                    {"type": "mrkdwn", "text": f"*Embeddings added to vector store:*\n{embeddings}"},
+                    {
+                        "type": "mrkdwn",
+                        "text": f"*Embeddings added to vector store:*\n{embeddings}",
+                    },
                     {"type": "mrkdwn", "text": f"*Answer bank pairs appended:*\n{pairs}"},
-                    {"type": "mrkdwn", "text": f"*Background audio classifier:*\n{classifier_text}"},
+                    {
+                        "type": "mrkdwn",
+                        "text": f"*Background audio classifier:*\n{classifier_text}",
+                    },
                 ],
             },
         ],
@@ -364,28 +443,40 @@ def send_slack_notification(
 # that Airflow XComs. They are testable with a mock context (no live Airflow).
 
 def _extract_suspicious(**context: Any) -> dict[str, Any]:
-    """Task 1: query Delta Lake for suspicious segments from the past DAG interval."""
+    """Task 1: segments of sessions a human reviewed during the DAG interval.
+
+    Unreviewed flags are deliberately ignored (see module docstring).
+    """
     from_ts = context["data_interval_start"].timestamp()
     to_ts   = context["data_interval_end"].timestamp()
 
-    segments = query_suspicious_segments(
+    segments = query_reviewed_segments(
         config.DELTA_LAKE_PATH, from_ts, to_ts
     )
+    confirmed = {s["session_id"] for s in segments if s.get("verdict") == "confirmed"}
+    cleared   = {s["session_id"] for s in segments if s.get("verdict") == "cleared"}
 
     logger.info(
-        "suspicious_segments_extracted",
+        "reviewed_segments_extracted",
         count=len(segments),
+        confirmed_sessions=len(confirmed),
+        cleared_sessions=len(cleared),
         from_ts=from_ts,
         to_ts=to_ts,
     )
-    return {"segments": segments, "count": len(segments)}
+    return {
+        "segments": segments,
+        "count": len(segments),
+        "confirmed_sessions": len(confirmed),
+        "cleared_sessions": len(cleared),
+    }
 
 
 def _compute_embeddings(**context: Any) -> dict[str, Any]:
-    """Task 2: batch-embed suspicious CANDIDATE segments; update vector store."""
+    """Task 2: batch-embed CANDIDATE segments of human-confirmed sessions."""
     ti      = context["ti"]
     result  = ti.xcom_pull(task_ids="extract_suspicious") or {}
-    segments: list[dict[str, Any]] = result.get("segments", [])
+    segments = _confirmed_only(result.get("segments", []))
 
     candidate_texts = [
         s["text"] for s in segments
@@ -406,12 +497,14 @@ def _compute_embeddings(**context: Any) -> dict[str, Any]:
 
 
 def _retrain_bg_classifier(**context: Any) -> dict[str, Any]:
-    """Task 3: retrain the background audio classifier from suspicious sessions.
+    """Task 3: retrain the background audio classifier from human-reviewed sessions.
 
-    Downloads raw audio chunks from MinIO for sessions that appear in the
-    suspicious segment list, extracts MFCC features, and retrains. If fewer
-    than ``_MIN_RETRAIN_SAMPLES`` new samples are gathered, retraining is
-    skipped gracefully (retrained=False in the return payload).
+    Downloads raw audio chunks from MinIO for reviewed sessions and labels them
+    by verdict: confirmed → 1 (keyboard / assisted), cleared → 0 (ambient). Cleared
+    flags are the most valuable negatives: exactly the audio the model got wrong.
+    Retraining is skipped (retrained=False) when fewer than
+    ``_MIN_RETRAIN_SAMPLES`` samples are gathered or only one class is present,
+    since a one-class fit cannot separate anything.
 
     The versioned artifact is uploaded to model-artifacts/{date}_bg_classifier.pkl.
     """
@@ -421,20 +514,21 @@ def _retrain_bg_classifier(**context: Any) -> dict[str, Any]:
     date_str     = context["ds_nodash"]                  # YYYYMMDD
     artifact_name = f"{date_str}_bg_classifier.pkl"
 
-    # Unique session IDs with suspicious CANDIDATE turns
-    suspicious_sessions = {
-        s["session_id"]
+    # Reviewed sessions with CANDIDATE turns → label from the human verdict
+    session_labels: dict[str, int] = {
+        s["session_id"]: 1 if s.get("verdict") == "confirmed" else 0
         for s in segments
         if s.get("speaker", "").upper() == "CANDIDATE"
+        and s.get("verdict") in ("confirmed", "cleared")
     }
 
     features: list[np.ndarray] = []
     labels:   list[int]        = []
 
-    if suspicious_sessions:
+    if session_labels:
         try:
             store = _make_object_store()
-            for session_id in sorted(suspicious_sessions):
+            for session_id in sorted(session_labels):
                 chunk_paths = store.list_session_chunks(session_id)
                 for obj_path in chunk_paths[:_MAX_AUDIO_PER_SESSION]:
                     try:
@@ -448,7 +542,7 @@ def _retrain_bg_classifier(**context: Any) -> dict[str, Any]:
                         from ml.features.audio_bg import extract_mfcc_features
                         feat = extract_mfcc_features(audio_f32)
                         features.append(feat)
-                        labels.append(1)   # suspicious session → keyboard class
+                        labels.append(session_labels[session_id])
                     except Exception as chunk_exc:
                         logger.debug(
                             "audio_chunk_skipped",
@@ -458,11 +552,14 @@ def _retrain_bg_classifier(**context: Any) -> dict[str, Any]:
         except Exception as store_exc:
             logger.warning("minio_unavailable", error=str(store_exc))
 
-    if len(features) < _MIN_RETRAIN_SAMPLES:
+    n_classes = len(set(labels))
+    if len(features) < _MIN_RETRAIN_SAMPLES or n_classes < 2:
         logger.info(
             "retrain_skipped",
             n_samples=len(features),
+            n_classes=n_classes,
             threshold=_MIN_RETRAIN_SAMPLES,
+            reason="too_few_samples" if len(features) < _MIN_RETRAIN_SAMPLES else "single_class",
         )
         return {
             "artifact_name":  artifact_name,
@@ -493,10 +590,14 @@ def _retrain_bg_classifier(**context: Any) -> dict[str, Any]:
 
 
 def _update_answer_bank(**context: Any) -> dict[str, Any]:
-    """Task 4: extract Q&A pairs from suspicious segments and append to the bank."""
+    """Task 4: append Q&A pairs from human-confirmed sessions to the answer bank.
+
+    Cleared sessions are excluded: their answers are human, and adding them to the
+    bank of AI answers would make similar honest answers look suspicious.
+    """
     ti      = context["ti"]
     result  = ti.xcom_pull(task_ids="extract_suspicious") or {}
-    segments: list[dict[str, Any]] = result.get("segments", [])
+    segments = _confirmed_only(result.get("segments", []))
 
     new_pairs = make_qa_pairs(segments)
     n_appended = append_answer_bank(str(ANSWER_BANK_PATH), new_pairs)
@@ -507,6 +608,29 @@ def _update_answer_bank(**context: Any) -> dict[str, Any]:
         pairs_appended=n_appended,
     )
     return {"pairs_appended": n_appended, "pairs_found": len(new_pairs)}
+
+
+def _generate_llm_answers(**context: Any) -> dict[str, Any]:
+    """Task 5: answer bank questions with the routed local LLMs (Gemma / Qwen) and append.
+
+    Never fails the DAG: if Ollama is unreachable the task logs and returns zero.
+    """
+    max_q = int(getattr(config, "LLM_ANSWER_GEN_MAX", 0))
+    if max_q <= 0:
+        logger.info("llm_answer_generation_disabled")
+        return {"llm_answers_appended": 0, "llm_answers_generated": 0}
+
+    from ml.llm.answer_generator import generate_answers, load_questions
+    from ml.llm.router import build_router
+
+    ds = str(context.get("ds", ""))
+    seed = int(ds.replace("-", "")) if ds.replace("-", "").isdigit() else None
+
+    questions = load_questions(Path(ANSWER_BANK_PATH))
+    with build_router() as router:
+        entries = generate_answers(router, questions, max_questions=max_q, seed=seed)
+    n_appended = append_answer_bank(str(ANSWER_BANK_PATH), entries)
+    return {"llm_answers_appended": n_appended, "llm_answers_generated": len(entries)}
 
 
 def _notify(**context: Any) -> None:
@@ -522,6 +646,7 @@ def _notify(**context: Any) -> None:
     embed_r    = ti.xcom_pull(task_ids="compute_embeddings")    or {}
     retrain_r  = ti.xcom_pull(task_ids="retrain_bg_classifier") or {}
     bank_r     = ti.xcom_pull(task_ids="update_answer_bank")    or {}
+    llm_r      = ti.xcom_pull(task_ids="generate_llm_answers")  or {}
 
     stats: dict[str, Any] = {
         "segments_extracted": extract_r.get("count",            0),
@@ -529,6 +654,7 @@ def _notify(**context: Any) -> None:
         "retrained":          retrain_r.get("retrained",        False),
         "artifact_name":      retrain_r.get("artifact_name",    "—"),
         "pairs_appended":     bank_r.get("pairs_appended",      0),
+        "llm_answers_appended": llm_r.get("llm_answers_appended", 0),
         "dag_run_date":       context.get("ds", ""),
     }
 
@@ -590,14 +716,19 @@ try:
             python_callable=_update_answer_bank,
         )
 
+        t_llm = _PythonOperator(
+            task_id="generate_llm_answers",
+            python_callable=_generate_llm_answers,
+        )
+
         t_notify = _PythonOperator(
             task_id="notify",
             python_callable=_notify,
         )
 
-        # Task dependency graph
+        # Task dependency graph (bank writers run sequentially: same JSONL file)
         t_extract >> t_embed >> t_retrain >> t_notify
-        t_retrain >> t_bank >> t_notify
+        t_retrain >> t_bank >> t_llm >> t_notify
 
 except ImportError:
     # apache-airflow not installed (e.g. unit-test environment).

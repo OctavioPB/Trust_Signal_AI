@@ -17,6 +17,7 @@ import {
   getToken,
   healthCheck,
   startSession,
+  submitReview,
   submitSignals,
 } from "./api";
 
@@ -220,5 +221,31 @@ describe("ApiError", () => {
     } catch (e) {
       expect((e as ApiError).message).toBe("Internal Server Error");
     }
+  });
+});
+
+// ── submitReview ─────────────────────────────────────────────────────────────
+
+describe("submitReview", () => {
+  beforeEach(() => {
+    mockFetch({ session_id: SESSION, verdict: "cleared", reviewed_at: 1 });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("POSTs the verdict with the bearer token", async () => {
+    const r = await submitReview(TOKEN, SESSION, "cleared");
+    const { url, init } = lastCall();
+    expect(url).toBe(`/api/session/${SESSION}/review`);
+    expect(init.method).toBe("POST");
+    expect((init.headers as Record<string, string>).Authorization).toBe(`Bearer ${TOKEN}`);
+    expect(JSON.parse(init.body as string)).toEqual({ verdict: "cleared" });
+    expect(r.verdict).toBe("cleared");
+  });
+
+  it("throws ApiError when the session is still live (409)", async () => {
+    mockFetch({ detail: "End the session before reviewing it." }, 409);
+    await expect(submitReview(TOKEN, SESSION, "confirmed")).rejects.toBeInstanceOf(ApiError);
   });
 });

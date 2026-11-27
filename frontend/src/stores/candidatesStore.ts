@@ -98,7 +98,7 @@ interface CandidatesState {
   runPreScreen: (token: string, candidateUuid: string) => Promise<void>;
 }
 
-export const useCandidatesStore = create<CandidatesState>((set, get) => ({
+export const useCandidatesStore = create<CandidatesState>((set) => ({
   candidates: _DEMO,
   selectedId: null,
   loadingList: false,

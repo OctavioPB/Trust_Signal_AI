@@ -76,11 +76,11 @@ const TIER_SLICES = [
 // Categorical signal series — navy gradient per UI_Decisions §5.
 // Status colors (green/orange/red/purple) are reserved for semantic meaning only.
 const SIG_COLORS = [
-  "#003366",  // primary navy
-  "#1a4d80",  // navy 80%
-  "#336699",  // navy 60%
-  "#4d7099",  // navy muted
-  "#99bbdd",  // navy 30%
+  "var(--series-1)",
+  "var(--series-2)",
+  "var(--series-3)",
+  "var(--series-4)",
+  "var(--series-5)",
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -124,7 +124,7 @@ function DistributionChart() {
       aria-label="TrustScore distribution histogram"
       style={{ display: "block", overflow: "visible" }}
     >
-      <line x1={ph} y1={H - pb} x2={W - ph} y2={H - pb} stroke="#e0eaf4" strokeWidth={1} />
+      <line x1={ph} y1={H - pb} x2={W - ph} y2={H - pb} strokeWidth={1} style={{ stroke: "var(--primary-10)" }} />
       {DIST.map((d, i) => {
         const bH    = (d.count / max) * availH;
         const x     = ph + i * barW + gap / 2;
@@ -168,10 +168,10 @@ function WeeklyBarChart() {
         <line key={f}
           x1={ph} y1={H - pb - f * availH}
           x2={W - ph} y2={H - pb - f * availH}
-          stroke="#e0eaf4" strokeWidth={1} strokeDasharray="4 3"
+          strokeWidth={1} strokeDasharray="4 3" style={{ stroke: "var(--primary-10)" }}
         />
       ))}
-      <line x1={ph} y1={H - pb} x2={W - ph} y2={H - pb} stroke="#e0eaf4" strokeWidth={1} />
+      <line x1={ph} y1={H - pb} x2={W - ph} y2={H - pb} strokeWidth={1} style={{ stroke: "var(--primary-10)" }} />
 
       {WEEKLY.map((d, i) => {
         const cH = (d.cleared / max) * availH;
@@ -201,17 +201,16 @@ function WeeklyBarChart() {
 function TierDonut() {
   const r = 60, cx = 74, cy = 74;
   const circ = 2 * Math.PI * r;
-  let cum = 0;
+  const cumAt = (i: number) => TIER_SLICES.slice(0, i).reduce((acc, t) => acc + t.pct / 100, 0);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 18 }}>
       <svg viewBox="0 0 148 148" width={148} height={148} aria-label="Risk tier distribution">
-        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#e0eaf4" strokeWidth={16} />
+        <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth={16} style={{ stroke: "var(--primary-10)" }} />
         {TIER_SLICES.map((t, i) => {
           const frac   = t.pct / 100;
           const dash   = frac * circ;
-          const offset = cum * circ;
-          cum += frac;
+          const offset = cumAt(i) * circ;
           return (
             <circle key={i} cx={cx} cy={cy} r={r}
               fill="none" stroke={t.color} strokeWidth={16}
@@ -222,7 +221,7 @@ function TierDonut() {
           );
         })}
         <text x={cx} y={cy - 4} textAnchor="middle"
-          fontFamily="Fraunces, Georgia, serif" fontSize={26} fontWeight={300} fill="#003366">
+          fontFamily="Fraunces, Georgia, serif" fontSize={26} fontWeight={300} style={{ fill: "var(--primary-ink)" }}>
           {TOTAL}
         </text>
         <text x={cx} y={cy + 13} textAnchor="middle"
@@ -382,7 +381,7 @@ export function AnalyticsPage() {
         <div className="kpi">
           <span className="kpi-accent" />
           <div className="kpi-top"><div className="kpi-lbl">Total Sessions</div></div>
-          <div className="kpi-val" style={{ color: "var(--primary)" }}>
+          <div className="kpi-val" style={{ color: "var(--primary-ink)" }}>
             {TOTAL}<span className="unit">all time</span>
           </div>
           <div className="kpi-sub">

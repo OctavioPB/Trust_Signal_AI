@@ -6,13 +6,12 @@ rule on the resumes bucket. All MinIO I/O is mocked.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from storage.lifecycle import apply_resumes_lifecycle
 from storage.object_store import BUCKET_RESUMES
-
 
 # ── Validation ─────────────────────────────────────────────────────────────────
 

@@ -1,7 +1,7 @@
 repos:
   # Ruff — fast Python linter (replaces flake8 + isort + many more)
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.3.4
+    rev: v0.9.10
     hooks:
       - id: ruff
         args: [--fix]

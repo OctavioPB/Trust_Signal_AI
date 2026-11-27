@@ -36,7 +36,7 @@ from __future__ import annotations
 import html
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -49,7 +49,13 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from dashboard.api_client import APIError, end_session, get_report, get_score, get_token, health_check  # noqa: E402
+from dashboard.api_client import (  # noqa: E402
+    APIError,
+    get_report,
+    get_score,
+    get_token,
+    health_check,
+)
 
 try:
     from dashboard.pdf_export import generate_report_pdf
@@ -992,7 +998,7 @@ def _render_turns_timeline(turns: list[dict[str, Any]]) -> None:
 # ── Footer ────────────────────────────────────────────────────────────────────
 
 def _render_footer() -> None:
-    now = datetime.now(tz=timezone.utc).strftime("%B %Y").upper()
+    now = datetime.now(tz=UTC).strftime("%B %Y").upper()
     st.markdown(
         f"""
         <div class="ts-footer">

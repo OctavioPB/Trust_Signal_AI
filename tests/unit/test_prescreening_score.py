@@ -5,18 +5,14 @@ from __future__ import annotations
 import pytest
 
 from ml.prescreening_score import (
-    PreScreeningEngine,
-    PreScreeningResult,
-    PreScreeningSignalDetail,
     _W_INTERVIEW,
     _W_REPO,
     _W_RESUME,
-    _build_flag_reason,
+    PreScreeningEngine,
+    PreScreeningResult,
     _determine_severity,
-    _explain,
     _resolve_weights,
 )
-
 
 # ── _resolve_weights ───────────────────────────────────────────────────────────
 

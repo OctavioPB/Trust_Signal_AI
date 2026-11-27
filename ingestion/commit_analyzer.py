@@ -27,7 +27,7 @@ from __future__ import annotations
 import math
 from collections import Counter
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import structlog
 
@@ -193,7 +193,7 @@ def _detect_velocity_burst(
     total = len(timestamps)
     week_counts: Counter[str] = Counter()
     for ts in timestamps:
-        dt = datetime.fromtimestamp(ts, tz=timezone.utc)
+        dt = datetime.fromtimestamp(ts, tz=UTC)
         year, week, _ = dt.isocalendar()
         week_counts[f"{year}-W{week:02d}"] += 1
     max_in_week = max(week_counts.values())

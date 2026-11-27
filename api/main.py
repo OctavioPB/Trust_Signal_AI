@@ -8,6 +8,9 @@ Endpoints:
   GET  /session/{id}/report      — Full JSON report with per-turn analysis
   POST /session/{id}/end         — Close session; compute and lock final score
   DELETE /session/{id}           — GDPR data deletion (Sprint 10)
+  POST /session/{id}/review      — Human verdict on a scored session (training label)
+  GET  /reviews/pending          — Caller's flagged sessions still awaiting review
+  POST /session/{id}/turn        — Per-turn text score → anytime-valid early flag
 
 Authentication: HS256 JWT bearer token. Each recruiter org issues tokens via
 POST /auth/token. All session endpoints require Authorization: Bearer <token>.
@@ -19,22 +22,23 @@ from __future__ import annotations
 
 import time
 import uuid
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
-from typing import Annotated
+from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime, timedelta
+from typing import Annotated, Literal
 
 import structlog
 from fastapi import Depends, FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from jose import jwt
 from pydantic import BaseModel, Field
+from slowapi.errors import RateLimitExceeded
 
 import config
-from api.auth import _ALGORITHM, _auth, _bearer
+from api.auth import _ALGORITHM, _auth
 from api.candidates import router as _candidates_router
 from api.rate_limiter import limiter, rate_limit_exceeded_handler
-from ml.trust_score import TrustScoreEngine, TrustScoreResult
-from slowapi.errors import RateLimitExceeded
+from ml.sequential import SequentialMonitor, SequentialState
+from ml.trust_score import TrustScoreResult, load_engine_from_config
 
 # ── Sentry error tracking (optional) ──────────────────────────────────────────
 # Activated only when SENTRY_DSN is set; no-op otherwise.
@@ -62,7 +66,7 @@ _TOKEN_EXPIRE_HOURS = 24
 
 
 def _create_token(recruiter_id: str) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(hours=_TOKEN_EXPIRE_HOURS)
+    expire = datetime.now(UTC) + timedelta(hours=_TOKEN_EXPIRE_HOURS)
     return jwt.encode(
         {"sub": recruiter_id, "exp": expire},
         config.FASTAPI_SECRET_KEY,
@@ -87,10 +91,22 @@ class _SessionState:
     signal_scores: dict[str, float] = field(default_factory=dict)
     final_result: TrustScoreResult | None = None
     turns: list[dict] = field(default_factory=list)
+    review_verdict: str | None = None  # "confirmed" | "cleared" once a human reviews it
+    sequential: SequentialState = field(default_factory=SequentialState)
 
 
 _SESSIONS: dict[str, _SessionState] = {}
-_ENGINE = TrustScoreEngine()
+_ENGINE = load_engine_from_config()
+
+
+def _load_sequential_monitor() -> SequentialMonitor | None:
+    from pathlib import Path
+
+    path = getattr(config, "SEQUENTIAL_MODEL_PATH", "") or ""
+    return SequentialMonitor.load(Path(path)) if path else None
+
+
+_MONITOR: SequentialMonitor | None = _load_sequential_monitor()
 
 
 def _make_object_store():
@@ -100,6 +116,11 @@ def _make_object_store():
         access_key=config.MINIO_ACCESS_KEY,
         secret_key=config.MINIO_SECRET_KEY,
     )
+
+
+def _make_review_store():
+    from storage.review_store import ReviewStore  # lazy — duckdb only needed on review
+    return ReviewStore(config.DELTA_LAKE_PATH)
 
 
 def _get_session(session_id: str) -> _SessionState:
@@ -113,15 +134,17 @@ def _get_session(session_id: str) -> _SessionState:
 
 
 def _current_score(session: _SessionState) -> TrustScoreResult:
-    """Compute TrustScore from current signal scores; missing signals default to 0."""
+    """Compute TrustScore from the signal scores received so far."""
     s = session.signal_scores
     return _ENGINE.compute(
         session_id=session.session_id,
-        latency_score=s.get("latency", 0.0),
-        bg_audio_score=s.get("bg_audio", 0.0),
-        perplexity_score=s.get("perplexity", 0.0),
-        burstiness_score=s.get("burstiness", 0.0),
-        similarity_score=s.get("similarity", 0.0),
+        # Absent signals are passed as None: the legacy engine counts them as 0,
+        # the calibrated engine models them as missing.
+        latency_score=s.get("latency"),
+        bg_audio_score=s.get("bg_audio"),
+        perplexity_score=s.get("perplexity"),
+        burstiness_score=s.get("burstiness"),
+        similarity_score=s.get("similarity"),
     )
 
 
@@ -151,6 +174,7 @@ app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)  # typ
 
 # ── Prometheus metrics ─────────────────────────────────────────────────────────
 from api.metrics import instrument_app  # noqa: E402
+
 instrument_app(app)
 
 # ── Routers ────────────────────────────────────────────────────────────────────
@@ -180,11 +204,31 @@ class SessionStartResponse(BaseModel):
 
 
 class SignalScoresRequest(BaseModel):
-    latency_score: float = Field(0.0, ge=0.0, le=1.0)
-    bg_audio_score: float = Field(0.0, ge=0.0, le=1.0)
-    perplexity_score: float = Field(0.0, ge=0.0, le=1.0)
-    burstiness_score: float = Field(0.0, ge=0.0, le=1.0)
-    similarity_score: float = Field(0.0, ge=0.0, le=1.0)
+    """Omit (or send null for) a signal that could not be computed: it is then
+    missing, not 0. The legacy engine still counts missing as 0; the calibrated
+    engine models it explicitly."""
+
+    latency_score: float | None = Field(None, ge=0.0, le=1.0)
+    bg_audio_score: float | None = Field(None, ge=0.0, le=1.0)
+    perplexity_score: float | None = Field(None, ge=0.0, le=1.0)
+    burstiness_score: float | None = Field(None, ge=0.0, le=1.0)
+    similarity_score: float | None = Field(None, ge=0.0, le=1.0)
+
+
+class TurnScoreRequest(BaseModel):
+    text_score: float = Field(
+        ..., ge=0.0, le=1.0,
+        description="Text-detector suspicion for one candidate turn (TEXT_DETECTOR).",
+    )
+
+
+class SequentialSummary(BaseModel):
+    turns: int
+    evidence: float
+    threshold: float | None
+    early_flag: bool
+    flagged_at_turn: int | None
+    alpha: float
 
 
 class SignalDetail(BaseModel):
@@ -203,6 +247,7 @@ class ScoreResponse(BaseModel):
     flagged: bool
     flag_reason: str
     signals: list[SignalDetail]
+    sequential: SequentialSummary | None = None
 
 
 class ReportResponse(BaseModel):
@@ -217,6 +262,30 @@ class ReportResponse(BaseModel):
     flag_reason: str
     signals: list[SignalDetail]
     turns: list[dict]
+    review_verdict: str | None = None
+
+
+class ReviewRequest(BaseModel):
+    verdict: Literal["confirmed", "cleared"] = Field(
+        ...,
+        description=(
+            "'confirmed' = a human confirmed AI assistance; "
+            "'cleared' = the flag was a false positive."
+        ),
+    )
+
+
+class ReviewResponse(BaseModel):
+    session_id: str
+    verdict: str
+    reviewed_at: float
+
+
+class PendingReview(BaseModel):
+    session_id: str
+    trust_score: float
+    flag_reason: str
+    end_ts: float | None
 
 
 class SessionEndResponse(BaseModel):
@@ -229,7 +298,32 @@ class SessionEndResponse(BaseModel):
 
 # ── Internal helper ────────────────────────────────────────────────────────────
 
+def _sequential_summary(session: _SessionState) -> SequentialSummary | None:
+    if _MONITOR is None:
+        return None
+    st = session.sequential
+    return SequentialSummary(
+        turns=st.turns,
+        evidence=round(st.evidence, 4),
+        threshold=None if _MONITOR.threshold == float("inf") else round(_MONITOR.threshold, 4),
+        early_flag=st.flagged,
+        flagged_at_turn=st.flagged_at_turn,
+        alpha=_MONITOR.alpha,
+    )
+
+
+def _with_sequential(session: _SessionState, result: TrustScoreResult) -> TrustScoreResult:
+    """Merge an early sequential flag into a score result (a flag is never dropped)."""
+    if _MONITOR is None or not session.sequential.flagged:
+        return result
+    reason = _MONITOR.flag_reason(session.sequential)
+    if result.flagged:
+        return replace(result, flag_reason=f"{result.flag_reason}\n{reason}")
+    return replace(result, flagged=True, flag_reason=reason)
+
+
 def _score_response(session: _SessionState, result: TrustScoreResult) -> ScoreResponse:
+    result = _with_sequential(session, result)
     return ScoreResponse(
         session_id=session.session_id,
         status=session.status,
@@ -247,6 +341,7 @@ def _score_response(session: _SessionState, result: TrustScoreResult) -> ScoreRe
             )
             for s in result.signals
         ],
+        sequential=_sequential_summary(session),
     )
 
 
@@ -268,11 +363,11 @@ def session_report_pdf(
 
     try:
         from dashboard.pdf_export import generate_report_pdf  # lazy — fpdf2 optional
-    except ImportError:
+    except ImportError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="PDF generation unavailable: install fpdf2 (`pip install fpdf2`).",
-        )
+        ) from exc
 
     report_dict = {
         "session_id": session.session_id,
@@ -385,18 +480,55 @@ def session_signals(
             detail=f"Session '{session_id}' is already {session.status}.",
         )
 
+    # Only fields the caller sent are updated; an explicit null marks a signal missing.
+    sent = body.model_dump(exclude_unset=True)
     session.signal_scores.update(
-        {
-            "latency":    body.latency_score,
-            "bg_audio":   body.bg_audio_score,
-            "perplexity": body.perplexity_score,
-            "burstiness": body.burstiness_score,
-            "similarity": body.similarity_score,
-        }
+        {key.removesuffix("_score"): value for key, value in sent.items()}
     )
     result = _current_score(session)
     logger.debug("signals_updated", session_id=session_id, trust_score=result.trust_score)
     return _score_response(session, result)
+
+
+@app.post("/session/{session_id}/turn", response_model=SequentialSummary)
+def session_turn(
+    session_id: str,
+    body: TurnScoreRequest,
+    recruiter_id: Annotated[str, Depends(_auth)],
+) -> SequentialSummary:
+    """Add one candidate turn's text score to the session's running evidence.
+
+    The early flag uses an anytime-valid rule (ml/sequential.py): however many
+    turns are submitted and however often the score is polled, a human session
+    is flagged with probability at most alpha.
+
+    Raises:
+        404: Session not found.
+        409: Session is not live.
+        503: Sequential monitoring is not configured (SEQUENTIAL_MODEL_PATH).
+    """
+    session = _get_session(session_id)
+    if session.status != "live":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Session '{session_id}' is already {session.status}.",
+        )
+    if _MONITOR is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Sequential monitoring is not configured (set SEQUENTIAL_MODEL_PATH).",
+        )
+    was_flagged = session.sequential.flagged
+    _MONITOR.update(session.sequential, body.text_score)
+    if session.sequential.flagged and not was_flagged:
+        logger.info(
+            "sequential_early_flag",
+            session_id=session_id,
+            turn=session.sequential.flagged_at_turn,
+        )
+    summary = _sequential_summary(session)
+    assert summary is not None
+    return summary
 
 
 @app.get("/session/{session_id}/score", response_model=ScoreResponse)
@@ -451,7 +583,73 @@ def session_report(
             for s in result.signals
         ],
         turns=session.turns,
+        review_verdict=session.review_verdict,
     )
+
+
+@app.post("/session/{session_id}/review", response_model=ReviewResponse)
+def session_review(
+    session_id: str,
+    body: ReviewRequest,
+    recruiter_id: Annotated[str, Depends(_auth)],
+) -> ReviewResponse:
+    """Record a human verdict on an ended session.
+
+    Reviews are the ONLY training labels the nightly DAG uses: the system never
+    learns from its own flags. A later review supersedes an earlier one; both are
+    kept in the append-only review log for audit.
+
+    Raises:
+        404: Session not found.
+        409: Session is still live (there is no final score to review yet).
+        503: The review could not be persisted.
+    """
+    session = _get_session(session_id)
+    if session.status == "live":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="End the session before reviewing it.",
+        )
+
+    try:
+        record = _make_review_store().append(session_id, body.verdict, recruiter_id)
+    except Exception as exc:
+        logger.error("session_review_failed", session_id=session_id, error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Review storage temporarily unavailable; the verdict was not saved.",
+        ) from exc
+
+    session.review_verdict = record.verdict
+    return ReviewResponse(
+        session_id=session_id,
+        verdict=record.verdict,
+        reviewed_at=record.reviewed_at,
+    )
+
+
+@app.get("/reviews/pending", response_model=list[PendingReview])
+def reviews_pending(
+    recruiter_id: Annotated[str, Depends(_auth)],
+) -> list[PendingReview]:
+    """The caller's flagged sessions that no human has reviewed yet, oldest first."""
+    pending = [
+        s for s in _SESSIONS.values()
+        if s.recruiter_id == recruiter_id
+        and s.status == "flagged"
+        and s.review_verdict is None
+        and s.final_result is not None
+    ]
+    pending.sort(key=lambda s: s.end_ts or 0.0)
+    return [
+        PendingReview(
+            session_id=s.session_id,
+            trust_score=s.final_result.trust_score,  # type: ignore[union-attr]
+            flag_reason=s.final_result.flag_reason,  # type: ignore[union-attr]
+            end_ts=s.end_ts,
+        )
+        for s in pending
+    ]
 
 
 @app.post("/session/{session_id}/end", response_model=SessionEndResponse)
@@ -475,7 +673,7 @@ def session_end(
             detail=f"Session '{session_id}' is already {session.status}.",
         )
 
-    result = _current_score(session)
+    result = _with_sequential(session, _current_score(session))
     session.final_result = result
     session.end_ts = time.time()
     session.status = "flagged" if result.flagged else "completed"

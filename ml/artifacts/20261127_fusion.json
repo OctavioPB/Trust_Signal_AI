@@ -1,0 +1,53 @@
+{
+  "signals": [
+    "latency",
+    "bg_audio",
+    "perplexity",
+    "burstiness",
+    "similarity"
+  ],
+  "weights": {
+    "latency": 0.0,
+    "bg_audio": 0.0,
+    "perplexity": 4.5056029673496685,
+    "burstiness": 2.216151687861393,
+    "similarity": 1.502983669837635
+  },
+  "missing_offsets": {
+    "latency": 0.00034837873970844976,
+    "bg_audio": 0.00034837873970844976,
+    "perplexity": 0.0,
+    "burstiness": -1.4965347354057565,
+    "similarity": 0.0
+  },
+  "intercept": -3.4777523765093195,
+  "threshold": 0.846803474153137,
+  "alpha": 0.02,
+  "n_calibration_humans": 100,
+  "trained_on": "evals set 21986057b0335893 (650 texts), text detector binoculars",
+  "metadata": {
+    "created": "2026-11-27T00:30:22+00:00",
+    "text_detector": "binoculars",
+    "binoculars": {
+      "observer": "HuggingFaceTB/SmolLM2-135M",
+      "performer": "HuggingFaceTB/SmolLM2-135M-Instruct",
+      "midpoint": 0.878,
+      "scale": 0.05
+    },
+    "held_out_cross_fit": {
+      "auroc": 0.9501,
+      "ece": 0.0534,
+      "fpr": 0.0152,
+      "tpr": 0.5919,
+      "group_flag_rate": {
+        "chatgpt_qa": 0.82,
+        "gpt4_polished": 0.1429,
+        "local_llm": 0.925,
+        "native_essay": 0.0,
+        "non_native_essay": 0.0549,
+        "paraphrased": 0.425,
+        "web_qa": 0.0
+      }
+    }
+  }
+}

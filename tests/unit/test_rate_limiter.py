@@ -9,23 +9,24 @@ All tests use a fresh in-process Limiter instance to avoid shared state.
 
 from __future__ import annotations
 
-import pytest
-
+from fastapi import Request  # module-level: annotations are resolved from globals
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _make_test_app(limit: str = "100/minute"):
     """Build a minimal FastAPI app with a fresh rate limiter per call."""
-    from fastapi import FastAPI, Request
-    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from fastapi import FastAPI
+    from slowapi import Limiter
     from slowapi.errors import RateLimitExceeded
     from slowapi.util import get_remote_address
+
+    from api.rate_limiter import rate_limit_exceeded_handler
 
     _lim = Limiter(key_func=get_remote_address)
 
     app = FastAPI()
     app.state.limiter = _lim
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
     @app.get("/probe")
     @_lim.limit(limit)
@@ -37,21 +38,23 @@ def _make_test_app(limit: str = "100/minute"):
 
 def _make_two_key_app(limit: str = "5/minute"):
     """App with a token-prefix key function for isolation tests."""
-    from fastapi import FastAPI, Request
-    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from fastapi import FastAPI
+    from slowapi import Limiter
     from slowapi.errors import RateLimitExceeded
 
-    def _key(req: Request) -> str:
-        auth = req.headers.get("Authorization", "")
+    from api.rate_limiter import rate_limit_exceeded_handler
+
+    def _key(request: Request) -> str:  # slowapi passes the request only to a param named "request"
+        auth = request.headers.get("Authorization", "")
         if auth.startswith("Bearer ") and len(auth) > 27:
             return f"key:{auth[7:27]}"
-        return req.client.host if req.client else "unknown"  # type: ignore[union-attr]
+        return request.client.host if request.client else "unknown"  # type: ignore[union-attr]
 
     _lim = Limiter(key_func=_key)
 
     app = FastAPI()
     app.state.limiter = _lim
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
     @app.get("/probe")
     @_lim.limit(limit)

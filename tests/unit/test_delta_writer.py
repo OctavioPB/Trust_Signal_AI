@@ -11,7 +11,7 @@ Tests verify:
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -21,9 +21,7 @@ from storage.delta_writer import (
     DeltaWriter,
     InterviewRecord,
     SegmentRecord,
-    _create_spark_session,
 )
-
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -95,7 +93,7 @@ class TestUpsertInterview:
         writer, spark, mock_df, mock_delta_table, mock_merge = self._make_writer_with_delta()
 
         with (
-            patch("storage.delta_writer.DeltaTable") as mock_dt_cls,
+            patch("delta.DeltaTable") as mock_dt_cls,
         ):
             mock_dt_cls.isDeltaTable.return_value = True
             mock_dt_cls.forPath.return_value = mock_delta_table
@@ -113,7 +111,7 @@ class TestUpsertInterview:
     def test_createDataFrame_called_with_interviews_schema(self) -> None:
         writer, spark, mock_df, _, _ = self._make_writer_with_delta()
 
-        with patch("storage.delta_writer.DeltaTable") as mock_dt_cls:
+        with patch("delta.DeltaTable") as mock_dt_cls:
             mock_dt_cls.isDeltaTable.return_value = True
             mock_dt_cls.forPath.return_value = MagicMock(
                 alias=lambda x: MagicMock(
@@ -138,7 +136,7 @@ class TestUpsertInterview:
     def test_first_write_uses_overwrite_not_merge(self) -> None:
         writer, spark, mock_df, _, _ = self._make_writer_with_delta()
 
-        with patch("storage.delta_writer.DeltaTable") as mock_dt_cls:
+        with patch("delta.DeltaTable") as mock_dt_cls:
             mock_dt_cls.isDeltaTable.return_value = False  # table does not exist yet
 
             writer.upsert_interview(_make_interview())
@@ -167,7 +165,7 @@ class TestUpsertSegment:
         mock_merge.whenMatchedUpdateAll.return_value = mock_merge
         mock_merge.whenNotMatchedInsertAll.return_value = mock_merge
 
-        with patch("storage.delta_writer.DeltaTable") as mock_dt_cls:
+        with patch("delta.DeltaTable") as mock_dt_cls:
             mock_dt_cls.isDeltaTable.return_value = True
             mock_dt_cls.forPath.return_value = mock_delta_table
 
@@ -180,7 +178,7 @@ class TestUpsertSegment:
     def test_createDataFrame_called_with_segments_schema(self) -> None:
         writer, spark, mock_df = self._make_writer()
 
-        with patch("storage.delta_writer.DeltaTable") as mock_dt_cls:
+        with patch("delta.DeltaTable") as mock_dt_cls:
             mock_dt_cls.isDeltaTable.return_value = True
             mock_dt_cls.forPath.return_value = MagicMock(
                 alias=lambda x: MagicMock(
@@ -211,7 +209,7 @@ class TestUpsertSegment:
         mock_merge.whenMatchedUpdateAll.return_value = mock_merge
         mock_merge.whenNotMatchedInsertAll.return_value = mock_merge
 
-        with patch("storage.delta_writer.DeltaTable") as mock_dt_cls:
+        with patch("delta.DeltaTable") as mock_dt_cls:
             mock_dt_cls.isDeltaTable.return_value = True
             mock_dt_cls.forPath.return_value = mock_delta_table
 
@@ -227,7 +225,7 @@ class TestUpsertSegment:
     def test_first_segment_write_creates_table(self) -> None:
         writer, spark, mock_df = self._make_writer()
 
-        with patch("storage.delta_writer.DeltaTable") as mock_dt_cls:
+        with patch("delta.DeltaTable") as mock_dt_cls:
             mock_dt_cls.isDeltaTable.return_value = False
 
             writer.upsert_segment(_make_segment())
@@ -241,6 +239,12 @@ class TestUpsertSegment:
 
 class TestFlagSegment:
 
+    @pytest.fixture(autouse=True)
+    def _stub_spark_functions(self):
+        """F.col() needs an active SparkContext; stub the functions module."""
+        with patch("storage.delta_writer.F"):
+            yield
+
     def _make_writer(self):
         spark, _ = _make_mock_spark()
         writer = DeltaWriter(delta_lake_path="/tmp/delta", _spark=spark)
@@ -250,7 +254,7 @@ class TestFlagSegment:
         writer = self._make_writer()
         mock_delta_table = MagicMock(name="DeltaTable")
 
-        with patch("storage.delta_writer.DeltaTable") as mock_dt_cls:
+        with patch("delta.DeltaTable") as mock_dt_cls:
             mock_dt_cls.forPath.return_value = mock_delta_table
 
             writer.flag_segment("sess-uuid-001", chunk_seq=3, suspicious_flag=True)
@@ -261,7 +265,7 @@ class TestFlagSegment:
         writer = self._make_writer()
         mock_delta_table = MagicMock(name="DeltaTable")
 
-        with patch("storage.delta_writer.DeltaTable") as mock_dt_cls:
+        with patch("delta.DeltaTable") as mock_dt_cls:
             mock_dt_cls.forPath.return_value = mock_delta_table
 
             writer.flag_segment("sess-uuid-001", chunk_seq=3, suspicious_flag=True)
@@ -275,7 +279,7 @@ class TestFlagSegment:
         writer = self._make_writer()
         mock_delta_table = MagicMock(name="DeltaTable")
 
-        with patch("storage.delta_writer.DeltaTable") as mock_dt_cls:
+        with patch("delta.DeltaTable") as mock_dt_cls:
             mock_dt_cls.forPath.return_value = mock_delta_table
 
             writer.flag_segment("sess-uuid-001", chunk_seq=3, suspicious_flag=False)
@@ -285,7 +289,7 @@ class TestFlagSegment:
     def test_flag_segment_table_not_found_raises(self) -> None:
         writer = self._make_writer()
 
-        with patch("storage.delta_writer.DeltaTable") as mock_dt_cls:
+        with patch("delta.DeltaTable") as mock_dt_cls:
             mock_dt_cls.forPath.side_effect = RuntimeError("Table not found")
 
             with pytest.raises(RuntimeError):

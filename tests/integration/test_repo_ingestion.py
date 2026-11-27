@@ -15,16 +15,14 @@ import hashlib
 import json
 import time
 import uuid
-from datetime import datetime, timezone
-from unittest.mock import MagicMock, call, patch
+from datetime import UTC, datetime
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from ingestion.commit_analyzer import analyze_commits
 from ingestion.github_crawler import (
-    CommitSummary,
     GitHubCrawler,
-    RepoCrawlResult,
 )
 
 pytestmark = pytest.mark.integration
@@ -136,7 +134,7 @@ def test_kafka_payload_published_per_file():
         crawler = GitHubCrawler(_client=client)
         result = crawler.crawl_repo(_REPO_URL)
 
-        crawled_at = datetime.now(tz=timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        crawled_at = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
         for f in result.files:
             producer.publish_file(
                 repo_uuid=result.repo_uuid,

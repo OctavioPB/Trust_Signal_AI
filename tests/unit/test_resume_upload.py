@@ -7,7 +7,7 @@ JWT tokens are generated using the same secret and algorithm as the live service
 from __future__ import annotations
 
 import io
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 from jose import jwt
 
 import config
-from api.candidates import _CANDIDATES, router
+from api.candidates import _CANDIDATES
 from api.main import app
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -24,7 +24,7 @@ _ALGORITHM = "HS256"
 
 
 def _make_token(recruiter_id: str = "recruiter-test-uuid") -> str:
-    expire = datetime.now(timezone.utc) + timedelta(hours=1)
+    expire = datetime.now(UTC) + timedelta(hours=1)
     return jwt.encode(
         {"sub": recruiter_id, "exp": expire},
         config.FASTAPI_SECRET_KEY,
@@ -72,7 +72,8 @@ def test_create_candidate_status_is_pending(client: TestClient, auth_headers: di
 
 def test_create_candidate_requires_auth(client: TestClient) -> None:
     resp = client.post("/candidates")
-    assert resp.status_code == 403
+    # FastAPI >= 0.115 returns 401 for a missing bearer token; older versions 403.
+    assert resp.status_code in (401, 403)
 
 
 def test_create_candidate_rejects_bad_token(client: TestClient) -> None:

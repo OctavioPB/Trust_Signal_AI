@@ -15,7 +15,6 @@ Definition of Done (PLAN.md §4.7):
 
 from __future__ import annotations
 
-import os
 import tempfile
 import uuid
 
@@ -23,13 +22,11 @@ import duckdb
 import pytest
 
 from storage.delta_writer import (
-    SEGMENTS_SCHEMA,
     DeltaWriter,
     InterviewRecord,
     SegmentRecord,
     _create_spark_session,
 )
-
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 

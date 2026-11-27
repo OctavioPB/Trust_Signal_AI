@@ -8,11 +8,9 @@ from ml.repo_score import (
     DEFAULT_WEIGHTS,
     RepoScoreEngine,
     RepoScoreResult,
-    RepoSignalDetail,
     _build_flag_reason,
     _explain,
 )
-
 
 # ── Engine construction ────────────────────────────────────────────────────────
 
@@ -21,7 +19,9 @@ def test_default_weights_sum_to_one():
 
 
 def test_engine_accepts_valid_weight_override():
-    engine = RepoScoreEngine(weights={"code_perplexity": 0.40, "commit_pattern": 0.30, "code_style": 0.30})
+    engine = RepoScoreEngine(
+        weights={"code_perplexity": 0.40, "commit_pattern": 0.30, "code_style": 0.30}
+    )
     assert engine._weights["code_perplexity"] == pytest.approx(0.40)
 
 
@@ -32,7 +32,9 @@ def test_engine_raises_on_unknown_signal_key():
 
 def test_engine_raises_when_weights_do_not_sum_to_one():
     with pytest.raises(ValueError, match="sum to 1.0"):
-        RepoScoreEngine(weights={"code_perplexity": 0.50, "commit_pattern": 0.50, "code_style": 0.50})
+        RepoScoreEngine(
+            weights={"code_perplexity": 0.50, "commit_pattern": 0.50, "code_style": 0.50}
+        )
 
 
 def test_engine_custom_threshold_accepted():
@@ -197,12 +199,12 @@ def test_explain_high_tier():
 
 def test_explain_medium_tier():
     explanation = _explain("code_perplexity", 0.5)
-    assert "moderately" in explanation.lower() or "medium" in explanation.lower() or "moderate" in explanation.lower()
+    assert any(w in explanation.lower() for w in ("moderately", "medium", "moderate"))
 
 
 def test_explain_low_tier():
     explanation = _explain("code_perplexity", 0.1)
-    assert "normal" in explanation.lower() or "natural" in explanation.lower() or "within" in explanation.lower()
+    assert any(w in explanation.lower() for w in ("normal", "natural", "within"))
 
 
 def test_explain_all_signals_all_tiers():

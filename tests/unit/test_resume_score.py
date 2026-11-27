@@ -9,12 +9,9 @@ import pytest
 from ml.resume_score import (
     DEFAULT_WEIGHTS,
     ResumeScoreEngine,
-    ResumeScoreResult,
-    ResumeSignalDetail,
     _build_flag_reason,
     _explain,
 )
-
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
 

@@ -7,16 +7,28 @@
  * Layout: red left-border card with the flag_reason and the top three
  * contributing signals listed with their weighted contributions.
  *
- * Drop-in — same props as the original.
+ * Review footer: a human confirms or clears the flag. That verdict is the only
+ * training label the nightly DAG uses — the system never learns from its own flags.
+ * The footer renders only when `onReview` is passed.
  */
 
-import type { SignalDetail } from "../types";
+import type { ReviewVerdict, SignalDetail } from "../types";
 
 interface Props {
   flagged: boolean;
   flagReason: string;
   signals: SignalDetail[];
+  reviewVerdict?: ReviewVerdict | null;
+  onReview?: (verdict: ReviewVerdict) => void;
+  reviewBusy?: boolean;
+  reviewError?: string | null;
+  reviewNote?: string;
 }
+
+const VERDICT_LABEL: Record<ReviewVerdict, string> = {
+  confirmed: "AI assistance confirmed",
+  cleared:   "Flag cleared as a false positive",
+};
 
 function tierColor(raw: number): string {
   if (raw >= 0.65) return "var(--rojo)";
@@ -24,7 +36,10 @@ function tierColor(raw: number): string {
   return            "var(--verde)";
 }
 
-export function AlertPanel({ flagged, flagReason, signals }: Props) {
+export function AlertPanel({
+  flagged, flagReason, signals,
+  reviewVerdict = null, onReview, reviewBusy = false, reviewError = null, reviewNote,
+}: Props) {
   if (!flagged) return null;
 
   const topThree = [...signals]
@@ -70,6 +85,46 @@ export function AlertPanel({ flagged, flagReason, signals }: Props) {
           </div>
         ))}
       </div>
+
+      {onReview && (
+        <div className="review" aria-label="Human review">
+          <div className="review-head">
+            <span className="review-title">Human review</span>
+            {reviewVerdict ? (
+              <span className={"badge " + (reviewVerdict === "confirmed" ? "danger" : "success")}>
+                <span className="dot" />
+                {VERDICT_LABEL[reviewVerdict]}
+              </span>
+            ) : (
+              <span className="review-hint">
+                Your verdict trains the nightly models. Unreviewed flags are never used.
+              </span>
+            )}
+          </div>
+          <div className="review-actions">
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={reviewBusy}
+              aria-pressed={reviewVerdict === "confirmed"}
+              onClick={() => onReview("confirmed")}
+            >
+              Confirm AI assistance
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              disabled={reviewBusy}
+              aria-pressed={reviewVerdict === "cleared"}
+              onClick={() => onReview("cleared")}
+            >
+              Clear flag
+            </button>
+          </div>
+          {reviewError && <p className="review-error" role="alert">{reviewError}</p>}
+          {reviewNote && !reviewError && <p className="review-note">{reviewNote}</p>}
+        </div>
+      )}
     </div>
   );
 }

@@ -72,7 +72,8 @@ def query_table(
             resolved = resolved.replace("FROM t", f"FROM {scan_expr}")
         query = resolved
     else:
-        query = f"SELECT * FROM {scan_expr} LIMIT {limit}"
+        # Operator CLI: the SQL itself is user input by design; limit is coerced to int.
+        query = f"SELECT * FROM {scan_expr} LIMIT {int(limit)}"  # noqa: S608
 
     try:
         result = con.execute(query).fetchdf()

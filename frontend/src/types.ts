@@ -30,6 +30,15 @@ export interface ScoreResponse {
   signals: SignalDetail[];
 }
 
+/** Human verdict on a scored session — the only source of training labels. */
+export type ReviewVerdict = "confirmed" | "cleared";
+
+export interface ReviewResponse {
+  session_id: string;
+  verdict: ReviewVerdict;
+  reviewed_at: number;
+}
+
 export interface ReportResponse {
   session_id: string;
   recruiter_id: string;
@@ -42,6 +51,7 @@ export interface ReportResponse {
   flag_reason: string;
   signals: SignalDetail[];
   turns: Record<string, unknown>[];
+  review_verdict?: ReviewVerdict | null;
 }
 
 export interface SessionEndResponse {

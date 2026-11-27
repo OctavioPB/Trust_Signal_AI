@@ -13,6 +13,8 @@
  *  - Status colours appear only on value text and badges
  */
 
+import type React from "react";
+
 import { Eyebrow } from "../components/Eyebrow";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -106,7 +108,7 @@ const WEIGHT_COLORS = [
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function statusBadge(s: ModelStatus): JSX.Element {
+function statusBadge(s: ModelStatus): React.JSX.Element {
   const map: Record<ModelStatus, { cls: string; label: string }> = {
     healthy:    { cls: "success", label: "Healthy"    },
     degraded:   { cls: "warning", label: "Degraded"   },
@@ -116,7 +118,7 @@ function statusBadge(s: ModelStatus): JSX.Element {
   return <span className={`badge ${cls}`}><span className="dot" />{label}</span>;
 }
 
-function runBadge(s: RunStatus): JSX.Element {
+function runBadge(s: RunStatus): React.JSX.Element {
   const map: Record<RunStatus, { cls: string; label: string }> = {
     success: { cls: "success", label: "Success" },
     partial: { cls: "warning", label: "Partial" },
@@ -182,7 +184,7 @@ function ModelCard({ model, idx }: { model: SignalModel; idx: number }) {
           <span style={{ fontFamily: "var(--fb)", fontSize: 10, fontWeight: 600, letterSpacing: "2px", textTransform: "uppercase", color: "var(--mid)" }}>
             Accuracy
           </span>
-          <span style={{ fontFamily: "var(--fd)", fontSize: 18, fontWeight: 300, color: "var(--primary)" }}>
+          <span style={{ fontFamily: "var(--fd)", fontSize: 18, fontWeight: 300, color: "var(--primary-ink)" }}>
             {pct(model.accuracy)}
           </span>
         </div>
@@ -281,7 +283,7 @@ function RetrainLog() {
               <td style={{ ...TD, fontFamily: "var(--fm)", color: "var(--dark)" }}>{r.date}</td>
               <td style={{ ...TD, color: "var(--mid)" }}>{r.duration}</td>
               <td style={TD}>{runBadge(r.status)}</td>
-              <td style={{ ...TD, fontFamily: "var(--fd)", fontSize: 18, fontWeight: 300, color: "var(--primary)" }}>
+              <td style={{ ...TD, fontFamily: "var(--fd)", fontSize: 18, fontWeight: 300, color: "var(--primary-ink)" }}>
                 {r.modelsUpdated} <span style={{ fontFamily: "var(--fb)", fontSize: 10, color: "var(--mid)", fontWeight: 400 }}>/ 5</span>
               </td>
               <td style={{ ...TD, fontFamily: "var(--fm)", color: "var(--dark)" }}>
@@ -379,7 +381,7 @@ export function ModelsPage() {
         <div className="kpi">
           <span className="kpi-accent" />
           <div className="kpi-top"><div className="kpi-lbl">Models Online</div></div>
-          <div className="kpi-val" style={{ color: "var(--primary)" }}>
+          <div className="kpi-val" style={{ color: "var(--primary-ink)" }}>
             {healthy}<span className="unit">/ 5</span>
           </div>
           <div className="kpi-sub">
@@ -414,7 +416,7 @@ export function ModelsPage() {
         <div className="kpi">
           <span className="kpi-accent" />
           <div className="kpi-top"><div className="kpi-lbl">Flag Threshold</div></div>
-          <div className="kpi-val" style={{ color: "var(--primary)" }}>
+          <div className="kpi-val" style={{ color: "var(--primary-ink)" }}>
             0.65<span className="unit"> idx</span>
           </div>
           <div className="kpi-sub">Suspicion index cutoff</div>

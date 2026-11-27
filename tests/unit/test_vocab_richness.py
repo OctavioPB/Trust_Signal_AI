@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from ml.features.vocab_richness import (
     _HAP_MAX_SUSPICION,
     _HAP_MIN_SUSPICION,

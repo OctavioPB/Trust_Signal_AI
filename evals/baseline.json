@@ -1,0 +1,311 @@
+{
+  "dataset": {
+    "fingerprint": "21986057b0335893",
+    "n": 650,
+    "groups": {
+      "chatgpt_qa": 150,
+      "gpt4_polished": 91,
+      "local_llm": 40,
+      "native_essay": 88,
+      "non_native_essay": 91,
+      "paraphrased": 40,
+      "web_qa": 150
+    },
+    "human_groups": [
+      "native_essay",
+      "non_native_essay",
+      "web_qa"
+    ]
+  },
+  "abstained": {
+    "perplexity": 0,
+    "binoculars": 0,
+    "burstiness": 149,
+    "vocab_richness": 0,
+    "similarity": 0
+  },
+  "scorers": {
+    "perplexity": {
+      "auroc": 0.7257,
+      "tpr_at_1pct_fpr": 0.0,
+      "fpr_achieved_at_1pct": 0.0,
+      "group_flag_rate_at_5pct_fpr": {
+        "chatgpt_qa": 0.0,
+        "gpt4_polished": 0.0,
+        "local_llm": 0.0,
+        "native_essay": 0.0,
+        "non_native_essay": 0.0,
+        "paraphrased": 0.0,
+        "web_qa": 0.0
+      }
+    },
+    "binoculars": {
+      "auroc": 0.9121,
+      "tpr_at_1pct_fpr": 0.4953,
+      "fpr_achieved_at_1pct": 0.0091,
+      "group_flag_rate_at_5pct_fpr": {
+        "chatgpt_qa": 0.9733,
+        "gpt4_polished": 0.0659,
+        "local_llm": 0.775,
+        "native_essay": 0.0,
+        "non_native_essay": 0.0879,
+        "paraphrased": 0.325,
+        "web_qa": 0.0533
+      }
+    },
+    "burstiness": {
+      "auroc": 0.8505,
+      "tpr_at_1pct_fpr": 0.2368,
+      "fpr_achieved_at_1pct": 0.0091,
+      "group_flag_rate_at_5pct_fpr": {
+        "chatgpt_qa": 0.4533,
+        "gpt4_polished": 0.3077,
+        "local_llm": 0.925,
+        "native_essay": 0.0227,
+        "non_native_essay": 0.1538,
+        "paraphrased": 0.2,
+        "web_qa": 0.0
+      }
+    },
+    "vocab_richness": {
+      "auroc": 0.4311,
+      "tpr_at_1pct_fpr": 0.0,
+      "fpr_achieved_at_1pct": 0.0,
+      "group_flag_rate_at_5pct_fpr": {
+        "chatgpt_qa": 0.0133,
+        "gpt4_polished": 0.0,
+        "local_llm": 0.0,
+        "native_essay": 0.1818,
+        "non_native_essay": 0.0,
+        "paraphrased": 0.0,
+        "web_qa": 0.0
+      }
+    },
+    "similarity": {
+      "auroc": 0.5701,
+      "tpr_at_1pct_fpr": 0.134,
+      "fpr_achieved_at_1pct": 0.0091,
+      "group_flag_rate_at_5pct_fpr": {
+        "chatgpt_qa": 0.0,
+        "gpt4_polished": 0.2088,
+        "local_llm": 0.9,
+        "native_essay": 0.0341,
+        "non_native_essay": 0.1429,
+        "paraphrased": 0.825,
+        "web_qa": 0.0
+      }
+    },
+    "fused_current": {
+      "auroc": 0.856,
+      "tpr_at_1pct_fpr": 0.1963,
+      "fpr_achieved_at_1pct": 0.0091,
+      "group_flag_rate_at_5pct_fpr": {
+        "chatgpt_qa": 0.3267,
+        "gpt4_polished": 0.2747,
+        "local_llm": 0.9,
+        "native_essay": 0.0114,
+        "non_native_essay": 0.1648,
+        "paraphrased": 0.375,
+        "web_qa": 0.0
+      },
+      "at_production_threshold": {
+        "threshold": 0.65,
+        "fpr": 0.0,
+        "tpr": 0.0
+      },
+      "ece": 0.2297
+    },
+    "fused_text_only": {
+      "auroc": 0.856,
+      "tpr_at_1pct_fpr": 0.1963,
+      "fpr_achieved_at_1pct": 0.0091,
+      "group_flag_rate_at_5pct_fpr": {
+        "chatgpt_qa": 0.3267,
+        "gpt4_polished": 0.2747,
+        "local_llm": 0.9,
+        "native_essay": 0.0114,
+        "non_native_essay": 0.1648,
+        "paraphrased": 0.375,
+        "web_qa": 0.0
+      },
+      "at_production_threshold": {
+        "threshold": 0.65,
+        "fpr": 0.1854,
+        "tpr": 0.6822
+      },
+      "ece": 0.1132
+    },
+    "calibrated_fusion": {
+      "auroc": 0.8636,
+      "tpr_at_1pct_fpr": 0.1931,
+      "fpr_achieved_at_1pct": 0.0091,
+      "group_flag_rate_at_5pct_fpr": {
+        "chatgpt_qa": 0.5,
+        "gpt4_polished": 0.2198,
+        "local_llm": 0.75,
+        "native_essay": 0.0114,
+        "non_native_essay": 0.1648,
+        "paraphrased": 0.175,
+        "web_qa": 0.0
+      },
+      "ece": 0.061,
+      "at_conformal_threshold": {
+        "alpha": 0.02,
+        "fpr": 0.0182,
+        "tpr": 0.2212,
+        "group_flag_rate": {
+          "chatgpt_qa": 0.2933,
+          "gpt4_polished": 0.0879,
+          "local_llm": 0.425,
+          "native_essay": 0.0,
+          "non_native_essay": 0.0659,
+          "paraphrased": 0.05,
+          "web_qa": 0.0
+        },
+        "folds": [
+          {
+            "threshold": 0.7978,
+            "n_calibration_humans": 80,
+            "weights": {
+              "latency": 0.0,
+              "bg_audio": 0.0,
+              "perplexity": 2.018,
+              "burstiness": 2.924,
+              "similarity": 0.0
+            }
+          },
+          {
+            "threshold": 0.8168,
+            "n_calibration_humans": 81,
+            "weights": {
+              "latency": 0.0,
+              "bg_audio": 0.0,
+              "perplexity": 1.958,
+              "burstiness": 3.035,
+              "similarity": 0.0
+            }
+          },
+          {
+            "threshold": 0.8124,
+            "n_calibration_humans": 81,
+            "weights": {
+              "latency": 0.0,
+              "bg_audio": 0.0,
+              "perplexity": 1.958,
+              "burstiness": 2.534,
+              "similarity": 0.071
+            }
+          },
+          {
+            "threshold": 0.8231,
+            "n_calibration_humans": 82,
+            "weights": {
+              "latency": 0.0,
+              "bg_audio": 0.0,
+              "perplexity": 2.346,
+              "burstiness": 2.583,
+              "similarity": 0.333
+            }
+          },
+          {
+            "threshold": 0.8043,
+            "n_calibration_humans": 82,
+            "weights": {
+              "latency": 0.0,
+              "bg_audio": 0.0,
+              "perplexity": 2.324,
+              "burstiness": 2.617,
+              "similarity": 0.0
+            }
+          }
+        ]
+      }
+    },
+    "calibrated_fusion_binoculars": {
+      "auroc": 0.9501,
+      "tpr_at_1pct_fpr": 0.5483,
+      "fpr_achieved_at_1pct": 0.0091,
+      "group_flag_rate_at_5pct_fpr": {
+        "chatgpt_qa": 0.94,
+        "gpt4_polished": 0.3077,
+        "local_llm": 0.975,
+        "native_essay": 0.0,
+        "non_native_essay": 0.1758,
+        "paraphrased": 0.725,
+        "web_qa": 0.0
+      },
+      "ece": 0.0534,
+      "at_conformal_threshold": {
+        "alpha": 0.02,
+        "fpr": 0.0152,
+        "tpr": 0.5919,
+        "group_flag_rate": {
+          "chatgpt_qa": 0.82,
+          "gpt4_polished": 0.1429,
+          "local_llm": 0.925,
+          "native_essay": 0.0,
+          "non_native_essay": 0.0549,
+          "paraphrased": 0.425,
+          "web_qa": 0.0
+        },
+        "folds": [
+          {
+            "threshold": 0.7749,
+            "n_calibration_humans": 80,
+            "weights": {
+              "latency": 0.0,
+              "bg_audio": 0.0,
+              "perplexity": 4.156,
+              "burstiness": 2.334,
+              "similarity": 1.076
+            }
+          },
+          {
+            "threshold": 0.9038,
+            "n_calibration_humans": 81,
+            "weights": {
+              "latency": 0.0,
+              "bg_audio": 0.0,
+              "perplexity": 4.266,
+              "burstiness": 2.397,
+              "similarity": 0.958
+            }
+          },
+          {
+            "threshold": 0.8956,
+            "n_calibration_humans": 81,
+            "weights": {
+              "latency": 0.0,
+              "bg_audio": 0.0,
+              "perplexity": 4.26,
+              "burstiness": 2.039,
+              "similarity": 1.253
+            }
+          },
+          {
+            "threshold": 0.9442,
+            "n_calibration_humans": 82,
+            "weights": {
+              "latency": 0.0,
+              "bg_audio": 0.0,
+              "perplexity": 4.624,
+              "burstiness": 2.046,
+              "similarity": 1.488
+            }
+          },
+          {
+            "threshold": 0.6338,
+            "n_calibration_humans": 82,
+            "weights": {
+              "latency": 0.0,
+              "bg_audio": 0.0,
+              "perplexity": 4.104,
+              "burstiness": 2.15,
+              "similarity": 1.058
+            }
+          }
+        ]
+      }
+    }
+  }
+}

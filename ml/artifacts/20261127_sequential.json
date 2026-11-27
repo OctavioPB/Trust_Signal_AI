@@ -1,0 +1,30 @@
+{
+  "weight": 3.9982185562526995,
+  "intercept": -2.1786589055678727,
+  "prior_logit": -0.2601087455476812,
+  "clip": 3.0,
+  "threshold": 5.048346519183365,
+  "alpha": 0.02,
+  "max_turns": 12,
+  "n_calibration_sessions": 100,
+  "detector": "binoculars",
+  "metadata": {
+    "created": "2026-11-27T01:00:20+00:00",
+    "trained_on": "evals set 21986057b0335893, turn sessions",
+    "binoculars": {
+      "observer": "HuggingFaceTB/SmolLM2-135M",
+      "performer": "HuggingFaceTB/SmolLM2-135M-Instruct"
+    },
+    "held_out_cross_fit": {
+      "fpr": 0.0182,
+      "tpr": 0.4019,
+      "tpr_by_turn": {
+        "1": 0.0,
+        "2": 0.2773,
+        "3": 0.3738,
+        "5": 0.3988
+      },
+      "naive_running_mean_fpr_every_turn": 0.0973
+    }
+  }
+}

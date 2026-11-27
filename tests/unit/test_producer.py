@@ -6,21 +6,20 @@ No real Kafka connection is made.
 
 from __future__ import annotations
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from confluent_kafka import KafkaException
 
 from ingestion.producer import (
-    CHUNK_SIZE_BYTES,
     CHUNK_DURATION_MS,
+    CHUNK_SIZE_BYTES,
     MAX_RETRIES,
     SAMPLE_RATE,
     SAMPLE_WIDTH_BYTES,
     AudioProducer,
     frame_to_chunks,
 )
-
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -196,7 +195,7 @@ async def test_publish_chunk_retries_on_buffer_error(
 
     producer = AudioProducer("localhost:9092", "test-topic")
     with patch("ingestion.producer.asyncio.sleep", new_callable=AsyncMock):
-        with pytest.raises(Exception):
+        with pytest.raises(KafkaException):
             await producer.publish_chunk("session-buf", 0, b"\x00" * CHUNK_SIZE_BYTES)
 
     assert mock_kafka_producer.produce.call_count == MAX_RETRIES

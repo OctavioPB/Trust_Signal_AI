@@ -10,12 +10,10 @@ tests/integration/test_dag_dry_run.py with a mock Airflow context.
 from __future__ import annotations
 
 import json
-import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
-import pytest
 
 from airflow.dags.retraining_dag import (
     append_answer_bank,
@@ -26,7 +24,6 @@ from airflow.dags.retraining_dag import (
     send_slack_notification,
     update_vector_store,
 )
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -140,7 +137,7 @@ class TestEmbedTexts:
         with patch("airflow.dags.retraining_dag.embed_texts") as mock_fn:
             mock_fn.return_value = np.zeros((1, 4), dtype=np.float32)
             embed_texts(["text"], _model=model)
-        model.encode.call_count  # no assertion needed — just confirm no ImportError
+        # No assertion needed: reaching here confirms no ImportError.
 
     def test_calls_encode_with_normalize_true(self) -> None:
         model = self._stub_model()
@@ -279,7 +276,7 @@ class TestAppendAnswerBank:
         bank = self._write_bank(tmp_path, [{"question": "Q0", "answer": "A0"}])
         n = append_answer_bank(str(bank), [{"question": "Q1", "answer": "A1"}])
         assert n == 1
-        lines = [l for l in bank.read_text().splitlines() if l.strip()]
+        lines = [ln for ln in bank.read_text().splitlines() if ln.strip()]
         assert len(lines) == 2
 
     def test_deduplicates_on_answer(self, tmp_path: Path) -> None:

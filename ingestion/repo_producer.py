@@ -23,8 +23,6 @@ import json
 import structlog
 from confluent_kafka import KafkaException, Producer
 
-import config
-
 logger = structlog.get_logger(__name__)
 
 

@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from itertools import islice
 from random import Random
 
 import structlog
@@ -126,7 +125,7 @@ class CodeStyleScorer:
     """
 
     def __init__(self, seed: int = 42) -> None:
-        self._rng = Random(seed)
+        self._rng = Random(seed)  # noqa: S311 - deterministic sampling, not crypto
         self._log = logger.bind(component="CodeStyleScorer")
 
     def score_file(
@@ -147,12 +146,23 @@ class CodeStyleScorer:
         avg_edit_dist    = _avg_identifier_edit_distance(content, self._rng)
         boilerplate_ratio = _boilerplate_ratio(content)
 
-        comment_susp     = _normalise(comment_density,   _COMMENT_MAX_SUSPICION,    _COMMENT_MIN_SUSPICION,    inverse=False)
-        naming_susp      = _normalise(avg_edit_dist,     _NAMING_MAX_SUSPICION,     _NAMING_MIN_SUSPICION,     inverse=True)
-        boilerplate_susp = _normalise(boilerplate_ratio, _BOILERPLATE_MAX_SUSPICION, _BOILERPLATE_MIN_SUSPICION, inverse=False)
+        comment_susp = _normalise(
+            comment_density, _COMMENT_MAX_SUSPICION, _COMMENT_MIN_SUSPICION, inverse=False
+        )
+        naming_susp = _normalise(
+            avg_edit_dist, _NAMING_MAX_SUSPICION, _NAMING_MIN_SUSPICION, inverse=True
+        )
+        boilerplate_susp = _normalise(
+            boilerplate_ratio, _BOILERPLATE_MAX_SUSPICION, _BOILERPLATE_MIN_SUSPICION, inverse=False
+        )
 
         suspicion = float(
-            min(1.0, _W_COMMENT * comment_susp + _W_NAMING * naming_susp + _W_BOILERPLATE * boilerplate_susp)
+            min(
+                1.0,
+                _W_COMMENT * comment_susp
+                + _W_NAMING * naming_susp
+                + _W_BOILERPLATE * boilerplate_susp,
+            )
         )
 
         return CodeFileStyleResult(

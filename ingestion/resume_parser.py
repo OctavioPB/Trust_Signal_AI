@@ -48,7 +48,9 @@ _KEYWORD_TO_SECTION: dict[str, str] = {
 
 # A header line: ≤ 60 chars, optional trailing colon/whitespace, matches a keyword
 _HEADER_RE = re.compile(
-    r"^\s*(" + "|".join(re.escape(kw) for kw in sorted(_KEYWORD_TO_SECTION, key=len, reverse=True)) + r")\s*:?\s*$",
+    r"^\s*("
+    + "|".join(re.escape(kw) for kw in sorted(_KEYWORD_TO_SECTION, key=len, reverse=True))
+    + r")\s*:?\s*$",
     re.IGNORECASE,
 )
 

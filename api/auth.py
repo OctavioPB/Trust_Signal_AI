@@ -25,9 +25,9 @@ def _auth(
             algorithms=[_ALGORITHM],
         )
         return str(payload["sub"])
-    except (JWTError, KeyError):
+    except (JWTError, KeyError) as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired authentication token.",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from exc

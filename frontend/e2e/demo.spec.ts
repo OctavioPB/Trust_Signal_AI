@@ -16,14 +16,14 @@ test.describe("demo mode", () => {
   });
 
   test("loads demo session and renders gauge", async ({ page }) => {
-    await page.getByRole("button", { name: /load demo/i }).click();
+    await page.getByRole("button", { name: /load demo/i }).first().click();
 
     // TrustScoreGauge SVG is visible
     await expect(page.locator("svg").first()).toBeVisible();
   });
 
   test("KPI row shows TrustScore ≤ 35", async ({ page }) => {
-    await page.getByRole("button", { name: /load demo/i }).click();
+    await page.getByRole("button", { name: /load demo/i }).first().click();
 
     // Demo scenario trust_score = 31.5 — shown as "31.5" in KpiRow
     const scoreEl = page.getByText("31.5").first();
@@ -35,16 +35,25 @@ test.describe("demo mode", () => {
   });
 
   test("FLAGGED badge is visible", async ({ page }) => {
-    await page.getByRole("button", { name: /load demo/i }).click();
+    await page.getByRole("button", { name: /load demo/i }).first().click();
 
     // "FLAGGED" appears in both KpiRow and AlertPanel
     await expect(page.getByText("FLAGGED").first()).toBeVisible();
   });
 
   test("alert panel is rendered with aria role", async ({ page }) => {
-    await page.getByRole("button", { name: /load demo/i }).click();
+    await page.getByRole("button", { name: /load demo/i }).first().click();
 
     // AlertPanel sets role="alert" aria-live="assertive"
     await expect(page.locator('[role="alert"]')).toBeVisible();
+  });
+
+  test("reviewer can clear the flag (demo: not saved)", async ({ page }) => {
+    await page.getByRole("button", { name: /load demo/i }).first().click();
+
+    await page.getByRole("button", { name: "Clear flag" }).click();
+    await expect(page.getByText("Flag cleared as a false positive")).toBeVisible();
+    await expect(page.getByText(/demo mode: the verdict is shown here but not saved/i)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Clear flag" })).toHaveAttribute("aria-pressed", "true");
   });
 });

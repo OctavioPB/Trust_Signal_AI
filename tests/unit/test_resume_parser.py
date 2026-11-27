@@ -13,7 +13,6 @@ from ingestion.resume_parser import (
     split_sections,
 )
 
-
 # ── split_sections ─────────────────────────────────────────────────────────────
 
 def test_split_sections_all_canonical_keys():

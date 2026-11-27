@@ -29,7 +29,7 @@ import pytest
 from confluent_kafka import Consumer, KafkaError
 
 import config
-from ingestion.consumer import AudioConsumer, STT_WINDOW_CHUNKS, STT_WINDOW_DURATION_S
+from ingestion.consumer import STT_WINDOW_CHUNKS, STT_WINDOW_DURATION_S, AudioConsumer
 from ingestion.producer import CHUNK_SIZE_BYTES, AudioProducer, frame_to_chunks
 from ingestion.text_publisher import TextPublisher
 from transcription.whisper_service import WhisperService
